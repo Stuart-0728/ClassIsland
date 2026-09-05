@@ -326,13 +326,15 @@ public class BashuPlatformService : IHostedService
                             await Task.Delay(25, token);
                         if (IntercomNotification?.CancellationToken.IsCancellationRequested == true ||
                             IntercomNotification?.CompletedToken.IsCancellationRequested == true) return;
-                        await PlayIntercomAudioAsync(bytes, mime, token);
+                        var playbackNotification = IntercomNotification;
+                        if (playbackNotification == null) return;
+                        await PlayIntercomAudioAsync(bytes, mime, playbackNotification, token);
                         LastAudioAt = DateTime.UtcNow;
                         ProcessedIntercomSegmentIds.Add(segId);
                         PendingIntercomAcks.Add(segId);
                         // The poll loop retries acknowledgements without adding an HTTP round trip between audio clips.
                     }
-                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    catch (OperationCanceledException)
                     {
                         // No success acknowledgement: the interrupted segment may be retried after the emergency.
                         if (!Shutdown.IsCancellationRequested && Connection == conn)
@@ -368,7 +370,7 @@ public class BashuPlatformService : IHostedService
         });
     }
 
-    private async Task PlayIntercomAudioAsync(byte[] bytes, string mimeType, CancellationToken token)
+    private async Task PlayIntercomAudioAsync(byte[] bytes, string mimeType, NotificationRequest notification, CancellationToken token)
     {
         // The platform records independent PCM WAV segments, avoiding browser-only Opus/WebM decoders.
         if (!mimeType.StartsWith("audio/wav", StringComparison.OrdinalIgnoreCase))
@@ -376,7 +378,28 @@ public class BashuPlatformService : IHostedService
         using var lease = await AudioService.TryInitializeDefaultPlaybackDeviceSafeAsync();
         if (lease == null) throw new InvalidOperationException("没有可用的音频输出设备");
         using var audio = new MemoryStream(bytes, false);
-        await AudioService.PlayAudioAsync(audio, (float)SettingsService.Settings.SpeechVolume, token);
-        token.ThrowIfCancellationRequested();
+        using var playbackCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        // A higher-priority island may arrive while a legacy clip is already playing.
+        // Stop its sound as well as its visual; retry only after the island resumes.
+        async Task WatchPriorityAsync()
+        {
+            try
+            {
+                while (!playbackCancellation.IsCancellationRequested)
+                {
+                    if (notification.State != NotificationState.Playing || notification.CancellationToken.IsCancellationRequested)
+                    { playbackCancellation.Cancel(); return; }
+                    await Task.Delay(20, playbackCancellation.Token);
+                }
+            }
+            catch (OperationCanceledException) { }
+        }
+        var priorityWatch = WatchPriorityAsync();
+        try
+        {
+            await AudioService.PlayAudioAsync(audio, (float)SettingsService.Settings.SpeechVolume, playbackCancellation.Token);
+            playbackCancellation.Token.ThrowIfCancellationRequested();
+        }
+        finally { playbackCancellation.Cancel(); await priorityWatch; }
     }
 }
