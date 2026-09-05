@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.1.3-bashu'
+        default: 'v2.1.4-bashu'
         type: string
   push:
     branches:
@@ -28,7 +28,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.3-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.4-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,11 +43,18 @@ jobs:
             8.0.x
             9.0.x
 
+      - name: Setup Go (1.22)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          check-latest: false
+
       - name: Run platform synchronization regression tests
         shell: pwsh
         run: |
           dotnet run --project tests/BashuPlatformSmoke/BashuPlatformSmoke.csproj
           dotnet run --project tests/NotificationPrioritySmoke/NotificationPrioritySmoke.csproj
+          dotnet run --project tests/BashuRtcSmoke/BashuRtcSmoke.csproj
 
       - name: Generate Dummy Secrets File
         shell: pwsh
@@ -57,7 +64,22 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:ApplicationVersion=2.1.3 -p:ApplicationDisplayVersion=2.1.3 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:ApplicationVersion=2.1.4 -p:ApplicationDisplayVersion=2.1.4 -o ${{ github.workspace }}/out_publish
+
+      - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
+        shell: pwsh
+        run: |
+          $goarch = if ("${{ matrix.arch }}" -eq "x64") { "amd64" } else { "arm64" }
+          Write-Output "Building BashuRtc.exe for Windows $goarch..."
+          Push-Location tools/bashu-rtc
+          $env:GOOS = "windows"
+          $env:GOARCH = $goarch
+          $env:CGO_ENABLED = "0"
+          go build -ldflags "-s -w" -o "${{ github.workspace }}/out_publish/BashuRtc.exe" .
+          Pop-Location
+          if (-not (Test-Path "${{ github.workspace }}/out_publish/BashuRtc.exe")) {
+            throw "BashuRtc.exe was not created in out_publish!"
+          }
 
       - name: Verify and Prepare Executables
         shell: pwsh
@@ -70,15 +92,15 @@ jobs:
             throw "ClassIsland.exe was not found in out_publish!"
           }
           $expected = if ("${{ matrix.arch }}" -eq "x64") { 0x8664 } else { 0xAA64 }
-          foreach ($name in @("ClassIsland.exe", "coreclr.dll")) {
+          foreach ($name in @("ClassIsland.exe", "coreclr.dll", "BashuRtc.exe")) {
             $bytes = [IO.File]::ReadAllBytes("${{ github.workspace }}/out_publish/$name")
             $offset = [BitConverter]::ToInt32($bytes, 0x3c)
             $machine = [BitConverter]::ToUInt16($bytes, $offset + 4)
-            if ($machine -ne $expected) { throw "Wrong architecture in $name : $machine" }
+            if ($machine -ne $expected) { throw "Wrong architecture in $name : $machine (expected $expected)" }
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.1.3.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.1.4.0") { throw "Unexpected application version: $version" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -91,7 +113,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.1.3
+            /DAppVersion=2.1.4
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -117,7 +139,7 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.3-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.4-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -157,12 +179,13 @@ jobs:
 
             本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
 
-            ### 核心更新与修复 (v2.1.3)
+            ### 核心更新与修复 (v2.1.4)
+            - **WebRTC 原生实时对讲引擎集成：** 内置原生编译的 `BashuRtc.exe`（Windows x64 与 ARM64 原生二进制），打通与服务器 UDP 3478 / TURN 的实时语音流，支持毫秒级低延迟对讲。
+            - **双通道无缝容灾保护：** 实时 WebRTC 通道与 PCM WAV 兼容通道双轨并行，优先直连，网络受阻时自动无感平滑切换至 WAV 兼容通道。
             - **Windows 双架构原生支持：** 全面支持 Windows 64位（Intel/AMD）与 Windows ARM64（高通骁龙 X Elite / Surface Pro X 等设备）。
             - **整周 7 天课表独立模型：** 支持周五提前放学等差异化作息，避免单日临时课表互相覆盖，北京时间午夜 0 点自动刷新今日课表；课间休息不偏移课程序号。
             - **通知发出人与滚动时长智能估算：** 标题和正文显示教师姓名，按内容长度、标点停顿与重复次数智能估算展示时长，避免重复触发朗读或过早消失。
             - **紧急通知优先级抢占与音频打断保护：** 当紧急广播到达时，即时静音并中断普通对讲音频，待紧急事项结束后安全恢复；回执不再阻塞下一段播放。
-            - **原生 PCM WAV 对讲音频支持：** 接入平台 16kHz 16-bit 单声道 WAV 音频流，大屏端原生秒播，彻底解决跨平台无声问题。
             - **新安装默认配置：** 微软雅黑 + ExtraBlack，Edge TTS 和提示音开启；重庆天气；天气、日期、时间、课表布局，时间不闪烁且不显示秒。升级保留已保存设置。
             - **极简配对体验：** 主岛与托盘菜单新增“绑定班级大屏”一键直达，预填平台地址，仅需输入 6 位配对码即可一键完成绑定。
 
@@ -175,7 +198,7 @@ jobs:
             ### 配套要求与验证边界
             - 平台必须同步部署 `scheduleWeek`、通知 `created_by_name` 和 WAV 音频上传支持；教师需刷新网页后发起对讲。
             - 微软雅黑使用 Windows 已安装字体；实际字重由系统字体支持决定，不附带商业字体文件。
-            - 已执行模型回归、双架构构建和 PE 架构校验；实际教室设备发声、窗口显示和线上联动仍需验收。
+            - 已执行模型回归、双架构构建和 PE 架构校验（0x8664 / 0xAA64）；实际教室设备发声、窗口显示和线上联动仍需验收。
             - 未进行代码签名，Windows 可能提示未知发布者；请核对 SHA256SUMS.txt。
           files: |
             ${{ github.workspace }}/release_files/*

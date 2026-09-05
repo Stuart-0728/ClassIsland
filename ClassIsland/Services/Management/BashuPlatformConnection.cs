@@ -187,8 +187,25 @@ public class BashuPlatformConnection : IManagementServerConnection
     }
 
     /// <summary>
-    /// 确认已接收通知
+    /// 拉取班级实时对讲信令并报告仍在接收的会话。
     /// </summary>
+    public async Task<string> GetRtcAsync(string receiving)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var response = await HttpClient.GetAsync("/api/display-client/rtc?receiving=" + Uri.EscapeDataString(receiving), timeout.Token);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync(timeout.Token);
+    }
+
+    public async Task SendRtcAsync(long sessionId, object payload)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        using var response = await HttpClient.PostAsync($"/api/display-client/rtc/{sessionId}", content, timeout.Token);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>确认已接收通知。</summary>
     public async Task<bool> AcknowledgeNotificationAsync(long notificationId)
     {
         if (string.IsNullOrWhiteSpace(Settings.BashuDeviceToken) || notificationId <= 0)
