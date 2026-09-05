@@ -47,9 +47,27 @@ public class BashuPlatformService : IHostedService
     private string LastScheduleSignature { get; set; } = "";
     private Profile? LastSyncedProfile;
     private readonly HashSet<long> ProcessedNotificationIds = new();
+    private readonly Queue<long> ProcessedNotificationOrder = new();
     private readonly HashSet<long> ProcessedIntercomSegmentIds = new();
+    private readonly Queue<long> ProcessedIntercomSegmentOrder = new();
     private bool IsPolling { get; set; } = false;
     private readonly HashSet<long> PresentedSessions = new();
+    private readonly Queue<long> PresentedSessionsOrder = new();
+
+    private static bool TrackBoundedId(HashSet<long> set, Queue<long> order, long id, int maxCapacity = 500)
+    {
+        if (set.Add(id))
+        {
+            order.Enqueue(id);
+            while (order.Count > maxCapacity)
+            {
+                var oldest = order.Dequeue();
+                set.Remove(oldest);
+            }
+            return true;
+        }
+        return false;
+    }
     private readonly HashSet<long> PendingNotificationAcks = new();
     private readonly HashSet<long> PendingIntercomAcks = new();
     private readonly CancellationTokenSource Shutdown = new();
@@ -93,7 +111,7 @@ public class BashuPlatformService : IHostedService
         RtcReceiver = new BashuRtcReceiver(audioService, notificationHostService, settingsService, logger);
         RtcReceiver.AudioStarted = sessionId =>
         {
-            var previouslyPresented = !PresentedSessions.Add(sessionId);
+            var previouslyPresented = !TrackBoundedId(PresentedSessions, PresentedSessionsOrder, sessionId);
             if (DisplayedIntercomSession == sessionId)
             {
                 CurrentAudioCancellation?.Cancel();
@@ -152,8 +170,11 @@ public class BashuPlatformService : IHostedService
                 InterruptedAudio = null;
                 IntercomNotification?.Cancel(); IntercomNotification = null; DisplayedIntercomSession = 0;
                 LastScheduleSignature = "";
-                ProcessedNotificationIds.Clear(); ProcessedIntercomSegmentIds.Clear();
-                PendingNotificationAcks.Clear(); PendingIntercomAcks.Clear(); PresentedSessions.Clear(); QueuedSegments.Clear();
+                ProcessedNotificationIds.Clear(); ProcessedNotificationOrder.Clear();
+                ProcessedIntercomSegmentIds.Clear(); ProcessedIntercomSegmentOrder.Clear();
+                PendingNotificationAcks.Clear(); PendingIntercomAcks.Clear();
+                PresentedSessions.Clear(); PresentedSessionsOrder.Clear();
+                QueuedSegments.Clear();
             }
             foreach (var pending in PendingNotificationAcks.ToArray())
                 if (await conn.AcknowledgeNotificationAsync(pending)) PendingNotificationAcks.Remove(pending);
@@ -169,7 +190,18 @@ public class BashuPlatformService : IHostedService
             {
                 RtcReceiver.Stop();
                 Status = conn.LastError;
+                // 网络异常或断开时，自适应降频至 5 秒一次，减少 CPU 资源空耗
+                if (PollTimer != null && PollTimer.Interval != TimeSpan.FromSeconds(5))
+                {
+                    PollTimer.Interval = TimeSpan.FromSeconds(5);
+                }
                 return;
+            }
+
+            // 成功通信，立即切回 1 秒快速响应
+            if (PollTimer != null && PollTimer.Interval != TimeSpan.FromSeconds(1))
+            {
+                PollTimer.Interval = TimeSpan.FromSeconds(1);
             }
 
             using var doc = JsonDocument.Parse(json);
@@ -207,7 +239,7 @@ public class BashuPlatformService : IHostedService
                         continue;
                     }
 
-                    ProcessedNotificationIds.Add(id);
+                    TrackBoundedId(ProcessedNotificationIds, ProcessedNotificationOrder, id);
                     var content = item.TryGetProperty("content", out var cEl) ? BashuPlatformConnection.GetStringFlexible(cEl) : "";
                     var author = Author(item);
                     var priority = item.TryGetProperty("priority", out var pEl) ? BashuPlatformConnection.GetStringFlexible(pEl) : "normal";
@@ -311,6 +343,10 @@ public class BashuPlatformService : IHostedService
         {
             Status = "同步失败：" + ex.Message;
             Logger.LogWarning(ex, "执行平台轮询发生错误");
+            if (PollTimer != null && PollTimer.Interval != TimeSpan.FromSeconds(5))
+            {
+                PollTimer.Interval = TimeSpan.FromSeconds(5);
+            }
         }
         finally
         {
@@ -364,7 +400,7 @@ public class BashuPlatformService : IHostedService
                         if (DisplayedIntercomSession != sessionId || IntercomNotification == null ||
                             IntercomNotification.CancellationToken.IsCancellationRequested)
                         {
-                            var firstPresentation = PresentedSessions.Add(sessionId);
+                            var firstPresentation = TrackBoundedId(PresentedSessions, PresentedSessionsOrder, sessionId);
                             DisplayedIntercomSession = sessionId;
                             IntercomNotification?.Cancel();
                             IntercomNotification = new NotificationRequest
@@ -390,7 +426,7 @@ public class BashuPlatformService : IHostedService
                         if (playbackNotification == null || RtcReceiver.Receiving(sessionId)) return;
                         await PlayIntercomAudioAsync(bytes, mime, playbackNotification, token);
                         LastAudioAt = DateTime.UtcNow;
-                        ProcessedIntercomSegmentIds.Add(segId);
+                        TrackBoundedId(ProcessedIntercomSegmentIds, ProcessedIntercomSegmentOrder, segId);
                         PendingIntercomAcks.Add(segId);
                         // The poll loop retries acknowledgements without adding an HTTP round trip between audio clips.
                     }
