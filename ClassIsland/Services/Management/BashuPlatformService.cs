@@ -20,6 +20,7 @@ using ClassIsland.Shared.Enums;
 using ClassIsland.Shared.Models.Profile;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ClassIsland.Views;
 
 namespace ClassIsland.Services.Management;
 
@@ -212,37 +213,75 @@ public class BashuPlatformService : IHostedService
                     var priority = item.TryGetProperty("priority", out var pEl) ? BashuPlatformConnection.GetStringFlexible(pEl) : "normal";
                     var isEmergency = priority == "emergency";
                     var repeat = item.TryGetProperty("repeat_count", out var rEl) ? Math.Clamp(BashuPlatformConnection.GetInt32Flexible(rEl), 1, 10) : 1;
+                    var isFullscreen = item.TryGetProperty("is_fullscreen", out var fsEl) && (fsEl.ValueKind == JsonValueKind.True || (fsEl.ValueKind == JsonValueKind.String && fsEl.GetString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true));
 
-                    Logger.LogInformation("收到平台广播通知：[{}] {} (来自 {})", priority, content, author);
-
-                    // 弹出 ClassIsland 原生通知卡片
-                    var notification = new NotificationRequest
+                    if (isFullscreen)
                     {
-                        MaskContent = NotificationContent.CreateTwoIconsMask(
-                            isEmergency ? $"【紧急广播】来自 {author}" : $"班级通知 · 来自 {author}",
-                            rightIcon: "\uE7E7", factory: mask => mask.IsSpeechEnabled = false
-                        ),
-                        OverlayContent = NotificationContent.CreateRollingTextContent($"{author}：{content}", BashuNotificationTiming.Duration(content, author, repeat), repeat,
-                            overlay => overlay.SpeechContent = string.Join("。", Enumerable.Repeat($"{author}通知：{content}", repeat))),
-                        IsPriorityOverride = isEmergency,
-                        PriorityOverride = isEmergency ? 100 : 0,
-                        RequestNotificationSettings =
+                        Logger.LogInformation("收到平台全屏强提醒：[{}] {} (来自 {})", priority, content, author);
+
+                        // 播放语音朗读
+                        for (var i = 0; i < repeat; i++)
                         {
-                            IsSettingsEnabled = true,
-                            IsSpeechEnabled = true,
-                            IsNotificationSoundEnabled = true,
-                            IsNotificationTopmostEnabled = true
+                            SpeechService.EnqueueSpeechQueue($"{author}通知：{content}");
                         }
-                    };
-                    notification.Completed += (_, _) =>
+
+                        // 弹出全屏强提醒窗口（必须人工点击“确认收到并关闭”后方可关闭）
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            try
+                            {
+                                var win = new BashuFullscreenNotificationWindow(author, content, isEmergency);
+                                win.Confirmed += (_, _) =>
+                                {
+                                    SpeechService.ClearSpeechQueue();
+                                    PendingNotificationAcks.Add(id);
+                                    if (Connection != null)
+                                    {
+                                        _ = Connection.AcknowledgeNotificationAsync(id);
+                                    }
+                                };
+                                win.Show();
+                                win.Activate();
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogError(ex, "显示全屏通知窗口失败");
+                            }
+                        });
+                    }
+                    else
                     {
-                        if (Connection != conn) return;
-                        if (notification.State == NotificationState.Completed)
-                            PendingNotificationAcks.Add(id);
-                        else
-                            ProcessedNotificationIds.Remove(id);
-                    };
-                    NotificationHostService.ShowNotification(notification, Guid.Empty, Guid.Empty, true, false);
+                        Logger.LogInformation("收到平台广播通知：[{}] {} (来自 {})", priority, content, author);
+
+                        // 弹出 ClassIsland 原生通知卡片
+                        var notification = new NotificationRequest
+                        {
+                            MaskContent = NotificationContent.CreateTwoIconsMask(
+                                isEmergency ? $"【紧急广播】来自 {author}" : $"班级通知 · 来自 {author}",
+                                rightIcon: "\uE7E7", factory: mask => mask.IsSpeechEnabled = false
+                            ),
+                            OverlayContent = NotificationContent.CreateRollingTextContent($"{author}：{content}", BashuNotificationTiming.Duration(content, author, repeat), repeat,
+                                overlay => overlay.SpeechContent = string.Join("。", Enumerable.Repeat($"{author}通知：{content}", repeat))),
+                            IsPriorityOverride = isEmergency,
+                            PriorityOverride = isEmergency ? 100 : 0,
+                            RequestNotificationSettings =
+                            {
+                                IsSettingsEnabled = true,
+                                IsSpeechEnabled = true,
+                                IsNotificationSoundEnabled = true,
+                                IsNotificationTopmostEnabled = true
+                            }
+                        };
+                        notification.Completed += (_, _) =>
+                        {
+                            if (Connection != conn) return;
+                            if (notification.State == NotificationState.Completed)
+                                PendingNotificationAcks.Add(id);
+                            else
+                                ProcessedNotificationIds.Remove(id);
+                        };
+                        NotificationHostService.ShowNotification(notification, Guid.Empty, Guid.Empty, true, false);
+                    }
                 }
             }
 

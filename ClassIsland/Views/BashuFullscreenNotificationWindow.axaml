@@ -1,0 +1,107 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="ClassIsland.Views.BashuFullscreenNotificationWindow"
+        Title="班级重要通知"
+        WindowState="FullScreen"
+        Topmost="True"
+        SystemDecorations="None"
+        Background="Transparent"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Background="#EE080D18">
+        <!-- 居中高美观度磨砂卡片 -->
+        <Border x:Name="CardBorder"
+                Width="780" MaxWidth="960"
+                Margin="32"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                CornerRadius="24"
+                BorderThickness="1.5"
+                BorderBrush="#38BDF8"
+                BoxShadow="0 24 64 0 #99000000">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Offset="0" Color="#1E293B" />
+                    <GradientStop Offset="1" Color="#0F172A" />
+                </LinearGradientBrush>
+            </Border.Background>
+
+            <Grid RowDefinitions="Auto,*,Auto" Margin="36 32">
+                <!-- 头部：发件人、通知类型与醒目图标 -->
+                <StackPanel Grid.Row="0" Spacing="14">
+                    <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                        <Border x:Name="IconBorder"
+                                Width="56" Height="56"
+                                CornerRadius="16"
+                                Background="#2638BDF8"
+                                BorderBrush="#6638BDF8"
+                                BorderThickness="1.5">
+                            <PathIcon x:Name="IconPath"
+                                      Width="28" Height="28"
+                                      Foreground="#38BDF8"
+                                      Data="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                            <TextBlock x:Name="TextBlockTitle"
+                                       Text="班级重要通知"
+                                       FontSize="24"
+                                       FontWeight="Bold"
+                                       Foreground="#FFFFFF" />
+                            <TextBlock x:Name="TextBlockAuthor"
+                                       Text="来自：任课教师"
+                                       FontSize="14"
+                                       Foreground="#94A3B8" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Border Background="#26FFFFFF" Height="1" Margin="0 4 0 0" />
+                </StackPanel>
+
+                <!-- 正文内容：大字号、高清晰排版 -->
+                <ScrollViewer Grid.Row="1" MaxHeight="380" Margin="0 24 0 24" VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="TextBlockContent"
+                               Text="传话内容"
+                               FontSize="28"
+                               LineHeight="44"
+                               FontWeight="Medium"
+                               Foreground="#F8FAFC"
+                               TextWrapping="Wrap" />
+                </ScrollViewer>
+
+                <!-- 底部：触控确认按钮与防误提示 -->
+                <StackPanel Grid.Row="2" Spacing="14" HorizontalAlignment="Stretch">
+                    <Button x:Name="ButtonConfirm"
+                            Click="ButtonConfirm_OnClick"
+                            HorizontalAlignment="Stretch"
+                            Height="62"
+                            CornerRadius="16"
+                            Background="#0284C7"
+                            BorderThickness="0"
+                            Cursor="Hand">
+                        <Button.Styles>
+                            <Style Selector="Button:pointerover /template/ ContentPresenter">
+                                <Setter Property="Background" Value="#0369A1" />
+                            </Style>
+                        </Button.Styles>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                            <PathIcon Width="24" Height="24" Foreground="#FFFFFF"
+                                      Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                            <TextBlock Text="确认收到并关闭"
+                                       FontSize="20"
+                                       FontWeight="Bold"
+                                       Foreground="#FFFFFF" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="请在班级大屏上轻触上方按钮或按回车键确认，避免遗漏重要通知"
+                               HorizontalAlignment="Center"
+                               FontSize="13"
+                               Foreground="#64748B" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
