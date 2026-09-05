@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.1.0-bashu'
+        default: 'v2.1.1-bashu'
         type: string
   push:
     branches:
@@ -14,6 +14,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build_windows:
@@ -24,7 +28,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.0-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.1-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,6 +43,10 @@ jobs:
             8.0.x
             9.0.x
 
+      - name: Run platform synchronization regression tests
+        shell: pwsh
+        run: dotnet run --project tests/BashuPlatformSmoke/BashuPlatformSmoke.csproj
+
       - name: Generate Dummy Secrets File
         shell: pwsh
         run: |
@@ -47,7 +55,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:ApplicationVersion=2.1.0 -p:ApplicationDisplayVersion=2.1.0 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:ApplicationVersion=2.1.1 -p:ApplicationDisplayVersion=2.1.1 -o ${{ github.workspace }}/out_publish
 
       - name: Verify and Prepare Executables
         shell: pwsh
@@ -59,6 +67,16 @@ jobs:
           if (-not (Test-Path "${{ github.workspace }}/out_publish/ClassIsland.exe")) {
             throw "ClassIsland.exe was not found in out_publish!"
           }
+          $expected = if ("${{ matrix.arch }}" -eq "x64") { 0x8664 } else { 0xAA64 }
+          foreach ($name in @("ClassIsland.exe", "coreclr.dll")) {
+            $bytes = [IO.File]::ReadAllBytes("${{ github.workspace }}/out_publish/$name")
+            $offset = [BitConverter]::ToInt32($bytes, 0x3c)
+            $machine = [BitConverter]::ToUInt16($bytes, $offset + 4)
+            if ($machine -ne $expected) { throw "Wrong architecture in $name : $machine" }
+            Write-Output "PASS native architecture $name : $machine"
+          }
+          $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
+          if ($version -ne "2.1.1.0") { throw "Unexpected application version: $version" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -71,7 +89,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.1.0
+            /DAppVersion=2.1.1
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -90,13 +108,14 @@ jobs:
           path: |
             ${{ github.workspace }}/out_installer/*.exe
             ${{ github.workspace }}/out_installer/*.zip
+          if-no-files-found: error
 
   release:
     name: Publish Release to GitHub
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.0-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.1-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -107,10 +126,27 @@ jobs:
         run: |
           find ${{ github.workspace }}/all_artifacts -type f
 
+      - name: Verify complete release and create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir release_files
+          for arch in x64 arm64; do
+            for suffix in Setup.exe Portable.zip; do
+              name="ClassIsland-Teaching-Windows-${arch}-${suffix}"
+              mapfile -t matches < <(find all_artifacts -type f -name "$name")
+              test "${#matches[@]}" -eq 1
+              cp "${matches[0]}" "release_files/$name"
+            done
+          done
+          cd release_files
+          sha256sum *.exe *.zip > SHA256SUMS.txt
+
       - name: Release Windows Binaries to GitHub
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
+          target_commitish: ${{ github.sha }}
           name: "ClassIsland 智慧教研版 ${{ env.TAG_NAME }}"
           draft: false
           prerelease: false
@@ -121,9 +157,9 @@ jobs:
 
             ### 核心更新与修复
             - **Windows 双架构原生支持：** 全面支持 Windows 64位（Intel/AMD）与 Windows ARM64（高通骁龙 X Elite / Surface Pro X 等设备）。
-            - **课表日期与实时更新修复：** 解决今日课表被误判为“明天”的问题，接入 UI 实时刷新机制，排课变更 5 秒内自动呈现在大屏。
-            - **广播通知与语音播报：** 默认启用通知朗读与提示音，确保通知正文全员清晰听清。
-            - **实时对讲语音接入：** 完整支持两江巴蜀平台网页端“按住说话”实时对讲，大屏端低延迟拉取播放并弹出对讲卡片。
+            - **课表自动刷新：** 按星期同步整周课程及自定义作息，平台托管模式优先使用云端课表，改课后重算悬浮岛显示。
+            - **通知发出人与滚动时长：** 标题和正文显示教师姓名，按内容长度与重复次数估算展示时长，避免重复触发朗读。
+            - **对讲播放修复：** 使用 PCM WAV，分离轮询和顺序播放，按会话提示去重，播放成功后才发送回执。
             - **极简配对体验：** 主岛与托盘菜单新增“绑定班级大屏”一键直达，预填平台地址，仅需输入 6 位配对码即可一键完成绑定。
 
             ### 下载文件说明
@@ -131,7 +167,12 @@ jobs:
             - **Windows x64 绿色便携版：** `ClassIsland-Teaching-Windows-x64-Portable.zip`
             - **Windows ARM64 一键安装版：** `ClassIsland-Teaching-Windows-arm64-Setup.exe`
             - **Windows ARM64 绿色便携版：** `ClassIsland-Teaching-Windows-arm64-Portable.zip`
+
+            ### 配套要求与验证边界
+            - 平台必须同步部署 `scheduleWeek`、通知 `created_by_name` 和 WAV 音频上传支持；教师需刷新网页后重新发起对讲。
+            - 已执行模型回归、双架构构建和 PE 架构校验；实际教室设备发声、窗口显示和线上联动仍需验收。
+            - 未进行代码签名，Windows 可能提示未知发布者；请核对 SHA256SUMS.txt。
           files: |
-            ${{ github.workspace }}/all_artifacts/**/*.exe
-            ${{ github.workspace }}/all_artifacts/**/*.zip
+            ${{ github.workspace }}/release_files/*
+          fail_on_unmatched_files: true
           token: ${{ secrets.GITHUB_TOKEN }}
