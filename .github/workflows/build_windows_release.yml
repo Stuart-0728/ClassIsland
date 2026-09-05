@@ -75,6 +75,7 @@ jobs:
           $env:GOOS = "windows"
           $env:GOARCH = $goarch
           $env:CGO_ENABLED = "0"
+          go mod tidy
           go build -ldflags "-s -w" -o "${{ github.workspace }}/out_publish/BashuRtc.exe" .
           Pop-Location
           if (-not (Test-Path "${{ github.workspace }}/out_publish/BashuRtc.exe")) {
