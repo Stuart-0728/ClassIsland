@@ -70,7 +70,7 @@ func run() error {
 			return
 		}
 		// Reorder a small window of packets. Late packets are discarded rather than accumulating latency.
-		builder := samplebuilder.New(5, &codecs.OpusPacket{}, 48000)
+		builder := samplebuilder.New(15, &codecs.OpusPacket{}, 48000)
 		for {
 			packet, _, err := track.ReadRTP()
 			if err != nil {
@@ -97,7 +97,7 @@ func run() error {
 	}
 	select {
 	case <-gathered:
-	case <-time.After(8 * time.Second):
+	case <-time.After(1 * time.Second):
 	}
 	emit(map[string]any{"type": "answer", "sdp": pc.LocalDescription().SDP})
 	done := make(chan struct{})

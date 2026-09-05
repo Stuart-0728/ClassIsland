@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.1.5-bashu'
+        default: 'v2.1.6-bashu'
         type: string
   push:
     branches:
@@ -28,7 +28,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.5-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.6-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:ApplicationVersion=2.1.5 -p:ApplicationDisplayVersion=2.1.5 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:ApplicationVersion=2.1.6 -p:ApplicationDisplayVersion=2.1.6 -o ${{ github.workspace }}/out_publish
 
       - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
         shell: pwsh
@@ -101,7 +101,7 @@ jobs:
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.1.5.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.1.6.0") { throw "Unexpected application version: $version" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -114,7 +114,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.1.5
+            /DAppVersion=2.1.6
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -140,7 +140,7 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.5-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.6-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -180,8 +180,12 @@ jobs:
 
             本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
 
-            ### 核心更新与修复 (v2.1.5)
-            - **全屏强提醒模式（含语音朗读与触控确认）：** 增加全新全屏强提醒窗口模式，针对重要集队、紧急广播与重要通告，班级大屏黑晶磨砂覆层全屏展示，伴随高保真语音播报，必须现场轻触“确认收到”方可关闭，防止信息遗漏。
+            ### 核心更新与修复 (v2.1.6)
+            - **对讲抗抖动与防断续算法重构：** 彻底重构 Jitter Buffer 动态平滑算法，解决网络偶发微小抖动时的缓冲饥饿震荡问题，消除机关枪式卡顿、断字与爆音。
+            - **毫秒级闪电握手：** 将 ICE 候选者收集超时从 8 秒缩短至 1 秒，老师按住说话 2~5 秒的简短通告也能在第 1~2 秒闪电进入超低延迟实时流。
+            - **网络抖动自愈容忍：** 优化连接状态监控，对公网瞬态 `disconnected` 赋予自愈宽限期，避免误判直接掐线。
+            - **支持 TCP 与 UDP 双 TURN 中继：** 自动探测并支持在校园网 UDP 受阻时，平滑回退走 TCP 3478 进行实时音频流穿透。
+            - **全屏强提醒模式（含语音朗读与触控确认）：** 针对重要集队、紧急广播与重要通告，班级大屏黑晶磨砂覆层全屏展示，伴随高保真语音播报，必须现场轻触“确认收到”方可关闭，防止信息遗漏。
             - **确认回执与状态同步：** 现场点击确认后，自动清空多余语音朗读队列并实时上报回执，网页端与后台实时展示“已确认收到”时间。
             - **WebRTC 原生实时对讲引擎集成：** 内置原生编译的 `BashuRtc.exe`（Windows x64 与 ARM64 原生二进制），打通与服务器 UDP 3478 / TURN 的实时语音流，支持毫秒级低延迟对讲。
             - **双通道无缝容灾保护：** 实时 WebRTC 通道与 PCM WAV 兼容通道双轨并行，优先直连，网络受阻时自动无感平滑切换至 WAV 兼容通道。

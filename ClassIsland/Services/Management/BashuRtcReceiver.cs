@@ -80,7 +80,8 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
                         break;
                     case "state":
                         var state = root.GetProperty("state").GetString();
-                        if (state is "failed" or "closed" or "disconnected") throw new IOException("实时连接中断");
+                        if (state is "failed" or "closed") throw new IOException("实时连接中断");
+                        if (state == "disconnected") logger.LogInformation("实时对讲连接短暂波动自愈中：{SessionId}", session.Id);
                         break;
                     case "audio":
                         var packet = Convert.FromBase64String(root.GetProperty("data").GetString()!);
