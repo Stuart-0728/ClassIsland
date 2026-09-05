@@ -167,7 +167,22 @@ public class NotificationHostService(SettingsService settingsService, ILogger<No
             SetupNotificationRequest(request, providerGuid, channelGuid);
             request.CompletedToken.Register(() => FinishNotificationPlaying(request));
         }
-        if (pushNotifications && PushNotificationRequests([CreateTicket(request)]))
+        // Queue first so an interrupted ticket cannot be resumed ahead of its interrupter.
+        if (pushNotifications && request.IsPriorityOverride)
+        {
+            EnqueueNotification(request, isPlayed);
+            foreach (var ticket in PlayingTickets.ToArray().Where(x =>
+                         x.Request.State == NotificationState.Playing &&
+                         (!x.Request.IsPriorityOverride || x.Request.PriorityOverride < request.PriorityOverride)))
+            {
+                ticket.Cancel();
+            }
+            PopRequestsToConsumers();
+            return;
+        }
+        if (pushNotifications && CanDispatchRequests &&
+            RegisteredConsumers.Any(x => x.Consumer.AcceptsNotificationRequests && x.Consumer.QueuedNotificationCount <= 0) &&
+            PushNotificationRequests([CreateTicket(request)]))
         {
             return;
         }
@@ -184,7 +199,8 @@ public class NotificationHostService(SettingsService settingsService, ILogger<No
         
         RequestQueue.Enqueue(request,
             new NotificationPriority(
-                Settings.NotificationProvidersPriority.IndexOf(request.NotificationSourceGuid.ToString()),
+                request.IsPriorityOverride ? -request.PriorityOverride :
+                    Settings.NotificationProvidersPriority.IndexOf(request.NotificationSourceGuid.ToString()),
                 request.InitialQueueIndex,
                 request.IsPriorityOverride,
                 isPlayed));

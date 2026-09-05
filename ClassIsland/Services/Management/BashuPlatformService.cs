@@ -12,6 +12,7 @@ using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Abstractions.Services.Management;
 using ClassIsland.Core.Abstractions.Services.SpeechService;
 using ClassIsland.Core.Models.Notification;
+using ClassIsland.Core.Enums.Notification;
 using ClassIsland.Services.SpeechService;
 using ClassIsland.Shared.Abstraction.Services;
 using ClassIsland.Shared.ComponentModels;
@@ -56,7 +57,13 @@ public class BashuPlatformService : IHostedService
     public string LastSync { get; private set; } = "尚未同步";
     private NotificationRequest? IntercomNotification;
     private DateTime LastAudioAt;
-    private Task AudioQueue = Task.CompletedTask;
+    private readonly Queue<(BashuPlatformConnection Connection, JsonElement Segment, long Id)> NormalAudioQueue = new();
+    private readonly Queue<(BashuPlatformConnection Connection, JsonElement Segment, long Id)> EmergencyAudioQueue = new();
+    private bool IsAudioQueueRunning;
+    private bool IsEmergencyAudioPlaying;
+    private CancellationTokenSource? CurrentAudioCancellation;
+    private long DisplayedIntercomSession;
+    private (BashuPlatformConnection Connection, JsonElement Segment, long Id)? InterruptedAudio;
     private readonly HashSet<long> QueuedSegments = new();
 
     public BashuPlatformConnection? Connection => ManagementService.Connection as BashuPlatformConnection;
@@ -101,6 +108,7 @@ public class BashuPlatformService : IHostedService
         Logger.LogInformation("停止两江巴蜀智慧教研平台同步托管服务");
         PollTimer?.Stop();
         Shutdown.Cancel();
+        CurrentAudioCancellation?.Cancel();
         IntercomNotification?.Cancel();
         return Task.CompletedTask;
     }
@@ -121,6 +129,10 @@ public class BashuPlatformService : IHostedService
             if (LastConnection != conn)
             {
                 LastConnection = conn;
+                CurrentAudioCancellation?.Cancel();
+                NormalAudioQueue.Clear(); EmergencyAudioQueue.Clear();
+                InterruptedAudio = null;
+                IntercomNotification?.Cancel(); IntercomNotification = null; DisplayedIntercomSession = 0;
                 LastScheduleSignature = "";
                 ProcessedNotificationIds.Clear(); ProcessedIntercomSegmentIds.Clear();
                 PendingNotificationAcks.Clear(); PendingIntercomAcks.Clear(); PresentedSessions.Clear(); QueuedSegments.Clear();
@@ -185,7 +197,7 @@ public class BashuPlatformService : IHostedService
                     Logger.LogInformation("收到平台广播通知：[{}] {} (来自 {})", priority, content, author);
 
                     // 弹出 ClassIsland 原生通知卡片
-                    NotificationHostService.ShowNotification(new NotificationRequest
+                    var notification = new NotificationRequest
                     {
                         MaskContent = NotificationContent.CreateTwoIconsMask(
                             isEmergency ? $"【紧急广播】来自 {author}" : $"班级通知 · 来自 {author}",
@@ -202,11 +214,16 @@ public class BashuPlatformService : IHostedService
                             IsNotificationSoundEnabled = true,
                             IsNotificationTopmostEnabled = true
                         }
-                    }, Guid.Empty, Guid.Empty, true, false);
-
-                    // 向平台确认收到
-                    PendingNotificationAcks.Add(id);
-                    if (await conn.AcknowledgeNotificationAsync(id)) PendingNotificationAcks.Remove(id);
+                    };
+                    notification.Completed += (_, _) =>
+                    {
+                        if (Connection != conn) return;
+                        if (notification.State == NotificationState.Completed)
+                            PendingNotificationAcks.Add(id);
+                        else
+                            ProcessedNotificationIds.Remove(id);
+                    };
+                    NotificationHostService.ShowNotification(notification, Guid.Empty, Guid.Empty, true, false);
                 }
             }
 
@@ -223,8 +240,12 @@ public class BashuPlatformService : IHostedService
 
                     if (!QueuedSegments.Add(segId)) continue;
                     var queuedSegment = segment.Clone();
-                    AudioQueue = PlayQueuedSegmentAsync(AudioQueue, conn, queuedSegment, segId);
+                    var emergency = segment.TryGetProperty("priority", out var priorityEl) && priorityEl.GetString() == "emergency";
+                    (emergency ? EmergencyAudioQueue : NormalAudioQueue).Enqueue((conn, queuedSegment, segId));
                 }
+                if (EmergencyAudioQueue.Count > 0 && !IsEmergencyAudioPlaying)
+                    CurrentAudioCancellation?.Cancel();
+                _ = DrainAudioQueueAsync();
             }
         }
         catch (Exception ex)
@@ -238,38 +259,84 @@ public class BashuPlatformService : IHostedService
         }
     }
 
-    private async Task PlayQueuedSegmentAsync(Task previous, BashuPlatformConnection conn, JsonElement segment, long segId)
+    private async Task DrainAudioQueueAsync()
     {
-        await previous;
+        if (IsAudioQueueRunning) return;
+        IsAudioQueueRunning = true;
+        try
+        {
+            while (!Shutdown.IsCancellationRequested && (EmergencyAudioQueue.Count > 0 || InterruptedAudio != null || NormalAudioQueue.Count > 0))
+            {
+                // Keep the emergency floor across normal network gaps between consecutive packets.
+                if (EmergencyAudioQueue.Count == 0 && IntercomNotification?.PriorityOverride == 200 &&
+                    DateTime.UtcNow - LastAudioAt < TimeSpan.FromSeconds(2))
+                {
+                    await Task.Delay(50, Shutdown.Token);
+                    continue;
+                }
+                IsEmergencyAudioPlaying = EmergencyAudioQueue.Count > 0;
+                var next = IsEmergencyAudioPlaying ? EmergencyAudioQueue.Dequeue() :
+                    InterruptedAudio ?? NormalAudioQueue.Dequeue();
+                if (!IsEmergencyAudioPlaying) InterruptedAudio = null;
+                using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Shutdown.Token);
+                CurrentAudioCancellation = cancellation;
+                await PlayQueuedSegmentAsync(next.Connection, next.Segment, next.Id, cancellation.Token);
+                CurrentAudioCancellation = null;
+            }
+        }
+        catch (OperationCanceledException) when (Shutdown.IsCancellationRequested) { }
+        finally { IsAudioQueueRunning = false; IsEmergencyAudioPlaying = false; CurrentAudioCancellation = null; }
+    }
+
+    private async Task PlayQueuedSegmentAsync(BashuPlatformConnection conn, JsonElement segment, long segId, CancellationToken token)
+    {
         try
         {
             if (Shutdown.IsCancellationRequested || Connection != conn) return;
                     var author = Author(segment);
                     var sessionId = segment.TryGetProperty("session_id", out var session) ? BashuPlatformConnection.GetInt64Flexible(session) : segId;
                     var mime = segment.TryGetProperty("mime_type", out var mimeEl) ? mimeEl.GetString() ?? "" : "";
+                    var emergency = segment.TryGetProperty("priority", out var priorityEl) && priorityEl.GetString() == "emergency";
                     try
                     {
-                        var bytes = await conn.GetIntercomSegmentAudioAsync(segId, Shutdown.Token);
+                        var bytes = await conn.GetIntercomSegmentAudioAsync(segId, token);
                         if (bytes == null || bytes.Length == 0) return;
-                        if (PresentedSessions.Add(sessionId))
+                        if (DisplayedIntercomSession != sessionId || IntercomNotification == null ||
+                            IntercomNotification.CancellationToken.IsCancellationRequested)
                         {
+                            var firstPresentation = PresentedSessions.Add(sessionId);
+                            DisplayedIntercomSession = sessionId;
                             IntercomNotification?.Cancel();
                             IntercomNotification = new NotificationRequest
                             {
-                                MaskContent = NotificationContent.CreateTwoIconsMask($"实时对讲 · {author}", rightIcon: "lucide(\ue17c)"),
+                                MaskContent = NotificationContent.CreateTwoIconsMask($"{(emergency ? "紧急广播" : "实时对讲")} · {author}", rightIcon: "lucide(\ue17c)"),
                                 OverlayContent = NotificationContent.CreateSimpleTextContent($"{author} 正在讲话", overlay => overlay.Duration = TimeSpan.FromMinutes(20)),
                                 IsPriorityOverride = true,
-                                PriorityOverride = 110,
+                                PriorityOverride = emergency ? 200 : 50,
                                 RequestNotificationSettings = { IsSettingsEnabled = true, IsSpeechEnabled = false, IsNotificationSoundEnabled = false, IsNotificationTopmostEnabled = true }
                             };
+                            if (!firstPresentation)
+                                IntercomNotification.MaskContent.Duration = TimeSpan.FromMilliseconds(1);
                             NotificationHostService.ShowNotification(IntercomNotification, Guid.Empty, Guid.Empty, true, false);
                         }
-                        // Keep playback ordered. Only acknowledge audio that actually completed.
-                        await PlayIntercomAudioAsync(bytes, mime, author);
+                        // Audio must not race ahead of its island while another notification is speaking.
+                        while (IntercomNotification is { State: not NotificationState.Playing } &&
+                               !IntercomNotification.CancellationToken.IsCancellationRequested &&
+                               !IntercomNotification.CompletedToken.IsCancellationRequested)
+                            await Task.Delay(25, token);
+                        if (IntercomNotification?.CancellationToken.IsCancellationRequested == true ||
+                            IntercomNotification?.CompletedToken.IsCancellationRequested == true) return;
+                        await PlayIntercomAudioAsync(bytes, mime, token);
                         LastAudioAt = DateTime.UtcNow;
                         ProcessedIntercomSegmentIds.Add(segId);
                         PendingIntercomAcks.Add(segId);
-                        if (await conn.AcknowledgeIntercomSegmentAsync(segId)) PendingIntercomAcks.Remove(segId);
+                        // The poll loop retries acknowledgements without adding an HTTP round trip between audio clips.
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        // No success acknowledgement: the interrupted segment may be retried after the emergency.
+                        if (!Shutdown.IsCancellationRequested && Connection == conn)
+                            InterruptedAudio = (conn, segment, segId);
                     }
                     catch (Exception ex)
                     {
@@ -278,7 +345,7 @@ public class BashuPlatformService : IHostedService
 
                     }
         }
-        finally { QueuedSegments.Remove(segId); }
+        finally { if (InterruptedAudio?.Id != segId) QueuedSegments.Remove(segId); }
     }
 
     private static string Author(JsonElement item)
@@ -301,7 +368,7 @@ public class BashuPlatformService : IHostedService
         });
     }
 
-    private async Task PlayIntercomAudioAsync(byte[] bytes, string mimeType, string author)
+    private async Task PlayIntercomAudioAsync(byte[] bytes, string mimeType, CancellationToken token)
     {
         // The platform records independent PCM WAV segments, avoiding browser-only Opus/WebM decoders.
         if (!mimeType.StartsWith("audio/wav", StringComparison.OrdinalIgnoreCase))
@@ -309,7 +376,7 @@ public class BashuPlatformService : IHostedService
         using var lease = await AudioService.TryInitializeDefaultPlaybackDeviceSafeAsync();
         if (lease == null) throw new InvalidOperationException("没有可用的音频输出设备");
         using var audio = new MemoryStream(bytes, false);
-        await AudioService.PlayAudioAsync(audio, (float)SettingsService.Settings.SpeechVolume, Shutdown.Token);
-        Shutdown.Token.ThrowIfCancellationRequested();
+        await AudioService.PlayAudioAsync(audio, (float)SettingsService.Settings.SpeechVolume, token);
+        token.ThrowIfCancellationRequested();
     }
 }

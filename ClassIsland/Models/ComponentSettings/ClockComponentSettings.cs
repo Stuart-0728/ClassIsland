@@ -30,7 +30,7 @@ public class ClockComponentSettings: ObservableRecipient
         }
     }
 
-    private bool _flashTimeSeparator = true;
+    private bool _flashTimeSeparator = false;
 
     public bool FlashTimeSeparator
     {

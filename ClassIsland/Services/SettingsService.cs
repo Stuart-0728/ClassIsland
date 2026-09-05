@@ -73,6 +73,14 @@ public class SettingsService(ILogger<SettingsService> Logger, IManagementService
             if (!File.Exists(Path.Combine(CommonDirectories.AppRootFolderPath, "Settings.json")))
             {
                 SkipMigration = true; // 如果是新的配置文件，那么就需要跳过迁移。
+                if (OperatingSystem.IsWindows())
+                {
+                    Settings.IsSpeechEnabled = true;
+                    Settings.AllowNotificationSpeech = true;
+                    Settings.IsNotificationSoundEnabled = true;
+                    Settings.AllowNotificationSound = true;
+                    Settings.SelectedSpeechProvider = "classisland.speech.edgeTts";
+                }
                 Logger.LogInformation("配置文件不存在，跳过加载。");
             }
             else

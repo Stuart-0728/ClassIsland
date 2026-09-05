@@ -221,6 +221,15 @@ public class NotificationWorkerService : INotificationWorkerService
         }
         catch (TaskCanceledException)
         {
+            // Stop the old voice before releasing its ticket to an urgent request.
+            SpeechService.ClearSpeechQueue();
+            session.HasSoundsPlayed = false;
+            if (!session.IsExplicitEndTime && settings.IsSpeechEnabled && content.IsSpeechEnabled)
+            {
+                // Speech restarts at the beginning on resume; give it a full relative display duration.
+                session.SessionPlayedTime = TimeSpan.Zero;
+                session.TimingStopwatch.Reset();
+            }
             Logger.LogInformation("提醒请求 {request} 取消播放", request.GetHashCode());
             request.State = request.CancellationToken.IsCancellationRequested
                 ? NotificationState.Cancelled

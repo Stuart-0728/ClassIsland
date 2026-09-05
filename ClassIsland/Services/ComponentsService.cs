@@ -40,7 +40,20 @@ public class ComponentsService : ObservableRecipient, IComponentsService
                 {
                     new ComponentSettings
                     {
+                        Id = "CA495086-E297-4BEB-9603-C5C1C1A8551E"
+                    },
+                    new ComponentSettings
+                    {
                         Id = "df3f8295-21f6-482e-bada-fa0e5f14bb66"
+                    },
+                    new ComponentSettings
+                    {
+                        Id = "9E1AF71D-8F77-4B21-A342-448787104DD9",
+                        Settings = new ClassIsland.Models.ComponentSettings.ClockComponentSettings
+                        {
+                            ShowSeconds = false,
+                            FlashTimeSeparator = false
+                        }
                     },
                     new ComponentSettings
                     {

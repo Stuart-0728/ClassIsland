@@ -44,9 +44,9 @@ public class NotificationPriority : IComparable
             return -1;
         }
         
-        if (IsPriorityOverride)
+        if (IsPriorityOverride != priority.IsPriorityOverride)
         {
-            return 1;
+            return IsPriorityOverride ? -1 : 1;
         }
 
         // if (IsNotificationPlayed && !priority.IsNotificationPlayed)
@@ -55,9 +55,9 @@ public class NotificationPriority : IComparable
         // }
         if (Priority != priority.Priority)
         {
-            return Priority - priority.Priority;
+            return Priority.CompareTo(priority.Priority);
         }
 
-        return Index - priority.Index;
+        return Index.CompareTo(priority.Index);
     }
 }

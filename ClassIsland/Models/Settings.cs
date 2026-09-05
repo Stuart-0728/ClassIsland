@@ -92,13 +92,13 @@ public class Settings : ObservableRecipient, ILessonControlSettings, INotificati
     private bool _isWallpaperAutoUpdateEnabled = false;
     private int _wallpaperAutoUpdateIntervalSeconds = 60;
     private bool _isFallbackModeEnabled = true;
-    private string _mainWindowFont = MainWindow.DefaultFontFamilyKey;
+    private string _mainWindowFont = OperatingSystem.IsWindows() ? "Microsoft YaHei" : MainWindow.DefaultFontFamilyKey;
     private ObservableDictionary<string, object?> _miniInfoProviderSettings = new();
     private string? _selectedMiniInfoProvider = "d9fc55d6-8061-4c21-b521-6b0532ff735f";
     private WeatherInfo _lastWeatherInfo = new();
-    private string _cityId = "weathercn:101010100";
-    private string _cityName = "北京 (北京, 中国)";
-    private int _mainWindowFontWeight2 = (int)FontWeight.Medium;
+    private string _cityId = "weathercn:101040100";
+    private string _cityName = "重庆 (重庆, 中国)";
+    private int _mainWindowFontWeight2 = (int)(OperatingSystem.IsWindows() ? FontWeight.ExtraBlack : FontWeight.Medium);
     private int _taskBarIconClickBehavior = OperatingSystem.IsWindows() ? 0 : 4;
     private bool _showExtraInfoOnTimePoint = true;
     private int _extraInfoType = 0;
