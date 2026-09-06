@@ -48,6 +48,7 @@ jobs:
         with:
           go-version: '^1.26.0'
           check-latest: false
+          cache-dependency-path: tools/bashu-rtc/go.sum
 
       - name: Run platform synchronization regression tests
         shell: pwsh
@@ -64,7 +65,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:ApplicationVersion=2.1.8 -p:ApplicationDisplayVersion=2.1.8 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.1.8 -p:AssemblyVersion=2.1.8.0 -p:FileVersion=2.1.8.0 -p:ApplicationVersion=2.1.8 -p:ApplicationDisplayVersion=2.1.8 -o ${{ github.workspace }}/out_publish
 
       - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
         shell: pwsh
@@ -102,6 +103,8 @@ jobs:
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
           if ($version -ne "2.1.8.0") { throw "Unexpected application version: $version" }
+          $fileVersion = (Get-Item "${{ github.workspace }}/out_publish/ClassIsland.dll").VersionInfo.FileVersion
+          if ($fileVersion -notlike "2.1.8.0*") { throw "Unexpected file version: $fileVersion" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
