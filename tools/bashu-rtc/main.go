@@ -87,9 +87,15 @@ func run() error {
 			if err != nil {
 				return
 			}
+			// Padding-only packets carry no Opus frame. Passing an empty frame to
+			// the decoder would surface as OPUS_INVALID_PACKET and previously
+			// caused the desktop client to abandon the realtime channel.
+			if len(packet.Payload) == 0 {
+				continue
+			}
 			builder.Push(packet)
 			for sample := builder.Pop(); sample != nil; sample = builder.Pop() {
-				if len(sample.Data) <= 4096 {
+				if len(sample.Data) > 0 && len(sample.Data) <= 4096 {
 					emit(map[string]any{"type": "audio", "data": base64.StdEncoding.EncodeToString(sample.Data)})
 				}
 			}

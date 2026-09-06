@@ -21,6 +21,8 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
 {
     private readonly ConcurrentDictionary<long, Reception> Sessions = new();
     private readonly object PollingGate = new();
+    private readonly object PlaybackGate = new();
+    private long ActiveSessionId;
     private BashuPlatformConnection? LastConnection;
     private CancellationTokenSource? PollingStop;
     private Task? PollingTask;
@@ -98,6 +100,7 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
     private void StopLocked()
     {
         PollingStop?.Cancel(); PollingStop?.Dispose(); PollingStop = null; PollingTask = null; LastConnection = null;
+        lock (PlaybackGate) ActiveSessionId = 0;
         foreach (var entry in Sessions.ToArray()) if (Sessions.TryRemove(entry.Key, out var session)) session.Dispose();
     }
 
@@ -141,10 +144,32 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
                         break;
                     case "audio":
                         var packet = Convert.FromBase64String(root.GetProperty("data").GetString()!);
-                        if (packet.Length > 4096) continue;
-                        var count = decoder.Decode(packet.AsSpan(), decoded.AsSpan(), 5760, false);
+                        // Browsers can occasionally emit an empty/padding-only or damaged
+                        // Opus packet while ICE changes candidate pairs. A single bad frame
+                        // must not tear down the whole realtime connection.
+                        if (packet.Length is 0 or > 4096) continue;
+                        int count;
+                        try
+                        {
+                            count = decoder.Decode(packet.AsSpan(), decoded.AsSpan(), decoded.Length, false);
+                        }
+                        catch (OpusException error)
+                        {
+                            session.DecodeErrors++;
+                            if (session.DecodeErrors <= 3 || session.DecodeErrors % 50 == 0)
+                                logger.LogWarning("忽略损坏的实时 Opus 音频帧：会话 {SessionId}，长度 {PacketLength}，错误 {ErrorCode}，累计 {ErrorCount}",
+                                    session.Id, packet.Length, error.OpusErrorCode, session.DecodeErrors);
+                            continue;
+                        }
+                        if (count <= 0) continue;
                         if (!session.HasAudio)
                         {
+                            if (!TryClaimPlayback(session))
+                            {
+                                logger.LogInformation("实时对讲会话 {SessionId} 因已有更高优先级广播而静音", session.Id);
+                                session.Dispose();
+                                break;
+                            }
                             playback = StartPlaybackAsync(session);
                             await session.AudioReady.Task;
                             await Dispatcher.UIThread.InvokeAsync(() =>
@@ -171,15 +196,41 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
             }
         }
         catch (OperationCanceledException) when (session.Stopped.IsCancellationRequested) { }
-        catch (Exception error) { logger.LogWarning("实时对讲回退至兼容通道：{Type}", error.GetType().Name); }
+        catch (Exception error) { logger.LogWarning(error, "实时对讲回退至兼容通道：会话 {SessionId}，{Type}：{Message}", session.Id, error.GetType().Name, error.Message); }
         finally
         {
             session.HasAudio = false;
+            ReleasePlayback(session);
             session.Dispose();
             if (playback != null) try { await playback; } catch { }
             session.Process?.Dispose();
             try { await connection.SendRtcAsync(session.Id, new { state = "failed" }); } catch { }
         }
+    }
+    private bool TryClaimPlayback(Reception session)
+    {
+        Reception? previous = null;
+        lock (PlaybackGate)
+        {
+            if (ActiveSessionId != 0 && ActiveSessionId != session.Id &&
+                Sessions.TryGetValue(ActiveSessionId, out var active) && !active.Stopped.IsCancellationRequested)
+            {
+                // Emergency broadcasts cannot be interrupted by normal talk.
+                // For equal priority the newest session wins, avoiding two islands
+                // and two audio streams playing at the same time.
+                if (active.Emergency && !session.Emergency) return false;
+                if (active.Emergency == session.Emergency && active.Id > session.Id) return false;
+                previous = active;
+            }
+            ActiveSessionId = session.Id;
+        }
+        previous?.Dispose();
+        return true;
+    }
+    private void ReleasePlayback(Reception session)
+    {
+        lock (PlaybackGate)
+            if (ActiveSessionId == session.Id) ActiveSessionId = 0;
     }
     private static async Task SendRtcWithRetryAsync(BashuPlatformConnection connection, long sessionId, object payload, CancellationToken token)
     {
@@ -226,6 +277,7 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
         public NotificationRequest? Notification;
         public Process? Process;
         public volatile bool ProcessStarted;
+        public int DecodeErrors;
         private readonly HashSet<string> SentCandidates = new();
         private readonly SemaphoreSlim InputGate = new(1, 1);
         public void RememberCandidates(JsonElement candidates)
