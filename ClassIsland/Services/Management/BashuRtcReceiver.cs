@@ -55,7 +55,9 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
             catch (Exception error)
             {
                 logger.LogDebug("实时对讲信令暂时不可用：{Type}", error.GetType().Name);
-                foreach (var entry in Sessions.ToArray()) if (Sessions.TryRemove(entry.Key, out var reception)) reception.Dispose();
+                // Signalling only exchanges session metadata and ICE candidates.
+                // Keep an established media channel alive through a short HTTP
+                // or reverse-proxy interruption and retry signalling separately.
                 await Task.Delay(1000, token);
             }
         }
@@ -199,7 +201,7 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
         public long Id { get; } = id;
         public string Author { get; } = author;
         public bool Emergency { get; } = emergency;
-        public bool HasAudio;
+        public volatile bool HasAudio;
         public readonly CancellationTokenSource Stopped = new();
         public readonly TaskCompletionSource AudioReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly BashuRtcAudioBuffer Buffer = new();
