@@ -344,11 +344,13 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
             var root = release.RootElement;
             var tag = root.GetProperty("tag_name").GetString() ?? "";
             var page = root.GetProperty("html_url").GetString() ?? "https://github.com/Stuart-0728/ClassIsland/releases";
-            var match = Regex.Match(tag, @"v(?<version>\d+\.\d+\.\d+)", RegexOptions.CultureInvariant);
+            var match = Regex.Match(tag, @"v?(?<version>\d+\.\d+\.\d+(\.\d+)?)", RegexOptions.CultureInvariant);
             var latest = match.Success ? Version.Parse(match.Groups["version"].Value) : new Version();
             var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version();
+            var normLatest = new Version(Math.Max(0, latest.Major), Math.Max(0, latest.Minor), Math.Max(0, latest.Build));
+            var normCurrent = new Version(Math.Max(0, current.Major), Math.Max(0, current.Minor), Math.Max(0, current.Build));
             Settings.LastUpdateStatus = UpdateStatus.UpToDate;
-            if (latest > current)
+            if (normLatest > normCurrent)
             {
                 await PlatformServices.DesktopToastService.ShowToastAsync("发现智慧教研特供版更新",
                     $"{current.ToString(3)} → {latest.ToString(3)}，点击打开特供版下载页面。",
