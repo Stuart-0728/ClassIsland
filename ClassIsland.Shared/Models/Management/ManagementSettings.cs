@@ -87,6 +87,7 @@ public class ManagementSettings : ObservableRecipient
     private string _bashuDeviceToken = "";
     private string _bashuDeviceName = "班级多媒体大屏";
     private string _bashuClassName = "";
+    private bool _bashuAutoMaximizeVolume = true;
 
     /// <summary>
     /// 班级标识符，可选。
@@ -168,6 +169,20 @@ public class ManagementSettings : ObservableRecipient
         {
             if (value == _bashuClassName) return;
             _bashuClassName = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// 平台通知、语音播报和实时对讲期间临时将 Windows 系统音量提升到最大。
+    /// </summary>
+    public bool BashuAutoMaximizeVolume
+    {
+        get => _bashuAutoMaximizeVolume;
+        set
+        {
+            if (value == _bashuAutoMaximizeVolume) return;
+            _bashuAutoMaximizeVolume = value;
             OnPropertyChanged();
         }
     }

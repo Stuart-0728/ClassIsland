@@ -17,7 +17,7 @@ Check(output.All(x => x == 0.25f), "mono speech expands to stereo without pitch 
 for(var i=0;i<100;i++) buffer.Push(mono);
 buffer.Push(Enumerable.Repeat(0.75f,960).ToArray());
 var drain = new float[24000]; buffer.ReadBytes(drain);
-Check(drain.Count(x => x != 0) <= 19200, "bursty network audio never exceeds 200 ms backlog");
+Check(drain.Count(x => x != 0) <= 11520, "bursty network audio never exceeds 120 ms backlog");
 Check(drain.Contains(0.75f), "latest audio is retained");
 buffer.Enabled = false; buffer.Push(mono); buffer.ReadBytes(output);
 Check(output.All(x=>x==0), "preempted live audio is muted and cleared");

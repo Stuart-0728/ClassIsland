@@ -28,8 +28,9 @@ public sealed class BashuRtcAudioBuffer : ISoundDataProvider
         {
             if (IsDisposed) return;
             if (!Enabled) { Samples.Clear(); Primed = false; ConsecutiveUnderflowFrames = 0; return; }
-            // At most 200 ms stereo audio; discard old samples when the network catches up in bursts.
-            var excess = Samples.Count + mono.Length * 2 - 19200;
+            // At most 120 ms stereo audio; discard old samples instead of turning
+            // network jitter into a growing, audible delay.
+            var excess = Samples.Count + mono.Length * 2 - 11520;
             while (excess-- > 0 && Samples.Count > 0) Samples.Dequeue();
             foreach (var sample in mono) { Samples.Enqueue(sample); Samples.Enqueue(sample); }
         }
@@ -43,7 +44,7 @@ public sealed class BashuRtcAudioBuffer : ISoundDataProvider
             if (!Enabled) { Samples.Clear(); Primed = false; ConsecutiveUnderflowFrames = 0; return buffer.Length; }
             if (!Primed)
             {
-                if (Samples.Count >= 5760) // 60 ms initial cushion
+                if (Samples.Count >= 3840) // 40 ms initial cushion
                 {
                     Primed = true;
                     ConsecutiveUnderflowFrames = 0;
@@ -63,8 +64,8 @@ public sealed class BashuRtcAudioBuffer : ISoundDataProvider
             else
             {
                 ConsecutiveUnderflowFrames++;
-                // Only drop back to un-primed pre-buffer state if starved continuously for > 200 ms
-                if (ConsecutiveUnderflowFrames >= 10)
+                // Re-prime quickly after a real gap without replaying old speech.
+                if (ConsecutiveUnderflowFrames >= 4)
                 {
                     Primed = false;
                 }

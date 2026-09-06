@@ -189,10 +189,12 @@ public class BashuPlatformConnection : IManagementServerConnection
     /// <summary>
     /// 拉取班级实时对讲信令并报告仍在接收的会话。
     /// </summary>
-    public async Task<string> GetRtcAsync(string receiving)
+    public async Task<string> GetRtcAsync(string receiving, int waitMs, CancellationToken cancellationToken)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        using var response = await HttpClient.GetAsync("/api/display-client/rtc?receiving=" + Uri.EscapeDataString(receiving), timeout.Token);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMilliseconds(Math.Clamp(waitMs + 5000, 5000, 20000)));
+        var path = "/api/display-client/rtc?receiving=" + Uri.EscapeDataString(receiving) + "&waitMs=" + Math.Clamp(waitMs, 0, 15000);
+        using var response = await HttpClient.GetAsync(path, timeout.Token);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(timeout.Token);
     }

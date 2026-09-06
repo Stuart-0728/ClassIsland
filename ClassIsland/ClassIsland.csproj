@@ -84,6 +84,7 @@
         <PackageReference Include="WindowsShortcutFactory" Version="1.1.0" />
         <PackageReference Include="ColorHelper" Version="1.8.1" />
         <PackageReference Include="Concentus" Version="2.2.2" />
+        <PackageReference Include="NAudio.Wasapi" Version="2.0.0" />
         <PackageReference Include="AsyncImageLoader.Avalonia" Version="3.3.0" />
         <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" />
 	</ItemGroup>

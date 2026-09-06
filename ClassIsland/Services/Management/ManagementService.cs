@@ -84,6 +84,11 @@ public class ManagementService : IManagementService
         AuthorizeService = authorizeService;
         Persist = LoadConfig<ManagementClientPersistConfig>(ManagementPersistConfigPath);
         Settings = LoadConfig<ManagementSettings>(ManagementSettingsPath);
+        Settings.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(ManagementSettings.BashuAutoMaximizeVolume))
+                SaveConfig(ManagementSettingsPath, Settings);
+        };
 #if DEBUG
         if (App.ApplicationCommand.DisableManagement)
         {

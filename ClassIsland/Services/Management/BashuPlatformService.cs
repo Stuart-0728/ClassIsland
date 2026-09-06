@@ -251,6 +251,9 @@ public class BashuPlatformService : IHostedService
                     {
                         Logger.LogInformation("收到平台全屏强提醒：[{}] {} (来自 {})", priority, content, author);
 
+                        var volumeLease = BashuSystemVolumeGuard.Acquire(conn.Settings.BashuAutoMaximizeVolume, Logger);
+                        var volumeReleased = 0;
+                        void ReleaseVolume() { if (Interlocked.Exchange(ref volumeReleased, 1) == 0) volumeLease.Dispose(); }
                         // 播放语音朗读
                         for (var i = 0; i < repeat; i++)
                         {
@@ -263,8 +266,10 @@ public class BashuPlatformService : IHostedService
                             try
                             {
                                 var win = new BashuFullscreenNotificationWindow(author, content, isEmergency);
+                                win.Closed += (_, _) => ReleaseVolume();
                                 win.Confirmed += (_, _) =>
                                 {
+                                    ReleaseVolume();
                                     SpeechService.ClearSpeechQueue();
                                     PendingNotificationAcks.Add(id);
                                     if (Connection != null)
@@ -277,6 +282,7 @@ public class BashuPlatformService : IHostedService
                             }
                             catch (Exception ex)
                             {
+                                ReleaseVolume();
                                 Logger.LogError(ex, "显示全屏通知窗口失败");
                             }
                         });
@@ -304,15 +310,28 @@ public class BashuPlatformService : IHostedService
                                 IsNotificationTopmostEnabled = true
                             }
                         };
+                        var volumeLease = BashuSystemVolumeGuard.Acquire(conn.Settings.BashuAutoMaximizeVolume, Logger);
+                        var volumeReleased = 0;
+                        void ReleaseVolume() { if (Interlocked.Exchange(ref volumeReleased, 1) == 0) volumeLease.Dispose(); }
+                        notification.Canceled += (_, _) => ReleaseVolume();
                         notification.Completed += (_, _) =>
                         {
+                            ReleaseVolume();
                             if (Connection != conn) return;
                             if (notification.State == NotificationState.Completed)
                                 PendingNotificationAcks.Add(id);
                             else
                                 ProcessedNotificationIds.Remove(id);
                         };
-                        NotificationHostService.ShowNotification(notification, Guid.Empty, Guid.Empty, true, false);
+                        try
+                        {
+                            NotificationHostService.ShowNotification(notification, Guid.Empty, Guid.Empty, true, false);
+                        }
+                        catch
+                        {
+                            ReleaseVolume();
+                            throw;
+                        }
                     }
                 }
             }
@@ -473,6 +492,7 @@ public class BashuPlatformService : IHostedService
             throw new NotSupportedException("请刷新平台网页后重新发起对讲（需要 PCM WAV 音频）");
         using var lease = await AudioService.TryInitializeDefaultPlaybackDeviceSafeAsync();
         if (lease == null) throw new InvalidOperationException("没有可用的音频输出设备");
+        using var volumeLease = BashuSystemVolumeGuard.Acquire(Connection?.Settings.BashuAutoMaximizeVolume == true, Logger);
         using var audio = new MemoryStream(bytes, false);
         using var playbackCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
         // A higher-priority island may arrive while a legacy clip is already playing.

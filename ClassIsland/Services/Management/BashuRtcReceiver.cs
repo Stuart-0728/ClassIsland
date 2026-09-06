@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -18,36 +19,82 @@ namespace ClassIsland.Services.Management;
 
 public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostService notifications, SettingsService settings, ILogger logger)
 {
-    private readonly Dictionary<long, Reception> Sessions = new();
+    private readonly ConcurrentDictionary<long, Reception> Sessions = new();
+    private readonly object PollingGate = new();
     private BashuPlatformConnection? LastConnection;
+    private CancellationTokenSource? PollingStop;
+    private Task? PollingTask;
     public Func<long, bool>? AudioStarted;
     public static string HelperPath => Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "BashuRtc.exe" : "BashuRtc");
     public bool Available => File.Exists(HelperPath);
     public bool Receiving(long id) => Sessions.TryGetValue(id, out var session) && session.HasAudio && !session.Stopped.IsCancellationRequested;
 
-    public async Task PollAsync(BashuPlatformConnection connection)
+    public Task PollAsync(BashuPlatformConnection connection)
     {
-        if (!Available) return;
-        if (LastConnection != connection) { Stop(); LastConnection = connection; }
-        JsonDocument data;
-        try { data = JsonDocument.Parse(await connection.GetRtcAsync(string.Join(",", Sessions.Keys.Where(Receiving)))); }
-        catch { Stop(); return; } // Revocation/network loss must not leave a background live receiver.
-        using var dataScope = data;
+        if (!Available) return Task.CompletedTask;
+        lock (PollingGate)
+        {
+            if (LastConnection == connection && PollingTask is { IsCompleted: false }) return Task.CompletedTask;
+            StopLocked(); LastConnection = connection; PollingStop = new CancellationTokenSource();
+            PollingTask = Task.Run(() => PollingLoopAsync(connection, PollingStop.Token));
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task PollingLoopAsync(BashuPlatformConnection connection, CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                await PollCoreAsync(connection, token);
+                var delay = Sessions.Values.Any(session => !session.HasAudio) ? 120 : Sessions.Count > 0 ? 2000 : 0;
+                if (delay > 0) await Task.Delay(delay, token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            catch (Exception error)
+            {
+                logger.LogDebug("实时对讲信令暂时不可用：{Type}", error.GetType().Name);
+                foreach (var entry in Sessions.ToArray()) if (Sessions.TryRemove(entry.Key, out var reception)) reception.Dispose();
+                await Task.Delay(1000, token);
+            }
+        }
+    }
+
+    private async Task PollCoreAsync(BashuPlatformConnection connection, CancellationToken token)
+    {
+        var receiving = string.Join(",", Sessions.Keys.Where(Receiving));
+        var waitMs = Sessions.Count == 0 ? 15000 : 0;
+        using var data = JsonDocument.Parse(await connection.GetRtcAsync(receiving, waitMs, token));
         var active = data.RootElement.GetProperty("sessions").EnumerateArray().ToArray();
         foreach (var id in Sessions.Keys.Where(id => active.All(item => item.GetProperty("id").GetInt64() != id)).ToArray())
-        { Sessions[id].Dispose(); Sessions.Remove(id); }
+            if (Sessions.TryRemove(id, out var ended)) ended.Dispose();
         foreach (var item in active)
         {
             var id = item.GetProperty("id").GetInt64();
-            if (Sessions.ContainsKey(id) || item.GetProperty("state").GetString() is "failed" or "closed") continue;
+            if (Sessions.TryGetValue(id, out var current))
+            {
+                if (item.TryGetProperty("offerCandidates", out var candidates)) await current.AddCandidatesAsync(candidates, token);
+                continue;
+            }
+            if (item.GetProperty("state").GetString() is "failed" or "closed") continue;
             var reception = new Reception(id, item.GetProperty("author").GetString() ?? "平台教师",
                 item.GetProperty("priority").GetString() == "emergency");
-            Sessions[id] = reception;
-            var input = JsonSerializer.Serialize(new { offer = item.GetProperty("offer").GetString(), iceServers = data.RootElement.GetProperty("iceServers").Clone() });
+            if (!Sessions.TryAdd(id, reception)) { reception.Dispose(); continue; }
+            var offerCandidates = item.TryGetProperty("offerCandidates", out var initialCandidates) && initialCandidates.ValueKind == JsonValueKind.Array
+                ? initialCandidates.Clone()
+                : JsonSerializer.SerializeToElement(Array.Empty<object>());
+            reception.RememberCandidates(offerCandidates);
+            var input = JsonSerializer.Serialize(new { offer = item.GetProperty("offer").GetString(), offerCandidates, iceServers = data.RootElement.GetProperty("iceServers").Clone() });
             _ = RunAsync(connection, reception, input);
         }
     }
-    public void Stop() { foreach (var session in Sessions.Values) session.Dispose(); Sessions.Clear(); }
+    public void Stop() { lock (PollingGate) StopLocked(); }
+    private void StopLocked()
+    {
+        PollingStop?.Cancel(); PollingStop?.Dispose(); PollingStop = null; PollingTask = null; LastConnection = null;
+        foreach (var entry in Sessions.ToArray()) if (Sessions.TryRemove(entry.Key, out var session)) session.Dispose();
+    }
 
     private async Task RunAsync(BashuPlatformConnection connection, Reception session, string input)
     {
@@ -61,6 +108,7 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
             session.Process = process;
             process.ErrorDataReceived += (_, _) => { }; // Never log SDP/ICE credentials.
             if (!process.Start()) throw new InvalidOperationException("无法启动实时对讲组件");
+            session.ProcessStarted = true;
             process.BeginErrorReadLine();
             await process.StandardInput.WriteLineAsync(input);
             await process.StandardInput.FlushAsync();
@@ -77,6 +125,9 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
                 {
                     case "answer":
                         await connection.SendRtcAsync(session.Id, new { answer = root.GetProperty("sdp").GetString() });
+                        break;
+                    case "candidate":
+                        await connection.SendRtcAsync(session.Id, new { candidate = root.GetProperty("candidate").Clone() });
                         break;
                     case "state":
                         var state = root.GetProperty("state").GetString();
@@ -131,6 +182,7 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
         {
             using var lease = await audio.TryInitializeDefaultPlaybackDeviceSafeAsync();
             if (lease == null) throw new InvalidOperationException("没有可用的音频输出设备");
+            using var volumeLease = BashuSystemVolumeGuard.Acquire(LastConnection?.Settings.BashuAutoMaximizeVolume == true, logger);
             using var player = new SoundPlayer(audio.AudioEngine, IAudioService.DefaultAudioFormat, session.Buffer);
             player.Volume = (float)settings.Settings.SpeechVolume;
             lease.Value.MasterMixer.AddComponent(player);
@@ -153,12 +205,38 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
         public readonly BashuRtcAudioBuffer Buffer = new();
         public NotificationRequest? Notification;
         public Process? Process;
+        public volatile bool ProcessStarted;
+        private readonly HashSet<string> SentCandidates = new();
+        private readonly SemaphoreSlim InputGate = new(1, 1);
+        public void RememberCandidates(JsonElement candidates)
+        {
+            if (candidates.ValueKind != JsonValueKind.Array) return;
+            foreach (var candidate in candidates.EnumerateArray()) SentCandidates.Add(candidate.GetRawText());
+        }
+        public async Task AddCandidatesAsync(JsonElement candidates, CancellationToken token)
+        {
+            if (candidates.ValueKind != JsonValueKind.Array || !ProcessStarted || Process == null) return;
+            try { if (Process.HasExited) return; } catch { return; }
+            foreach (var candidate in candidates.EnumerateArray())
+            {
+                var raw = candidate.GetRawText();
+                if (!SentCandidates.Add(raw)) continue;
+                await InputGate.WaitAsync(token);
+                try
+                {
+                    await Process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(new { candidate = candidate.Clone() }));
+                    await Process.StandardInput.FlushAsync(token);
+                }
+                finally { InputGate.Release(); }
+            }
+        }
         public void Dispose() {
             if (Stopped.IsCancellationRequested) return;
             Stopped.Cancel();
             Dispatcher.UIThread.Post(() => Notification?.Cancel());
             try { if (Process is { HasExited: false }) Process.Kill(true); } catch { }
             Buffer.Dispose();
+            InputGate.Dispose();
         }
     }
 }

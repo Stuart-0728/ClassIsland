@@ -53,18 +53,18 @@ func TestRealPeerAudio(t *testing.T) {
 			}
 		}
 	}()
+	candidates := make(chan webrtc.ICECandidateInit, 32)
+	pc.OnICECandidate(func(candidate *webrtc.ICECandidate) {
+		if candidate != nil {
+			candidates <- candidate.ToJSON()
+		}
+	})
 	offer, err := pc.CreateOffer(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gathered := webrtc.GatheringCompletePromise(pc)
 	if err = pc.SetLocalDescription(offer); err != nil {
 		t.Fatal(err)
-	}
-	select {
-	case <-gathered:
-	case <-time.After(5 * time.Second):
-		t.Fatal("sender ICE timeout")
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestRtcProcess$")
 	cmd.Env = append(os.Environ(), "BASHU_RTC_TEST_PROCESS=1")
@@ -74,20 +74,35 @@ func TestRealPeerAudio(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = stdin.Close(); _ = cmd.Process.Kill(); _ = cmd.Wait() }()
-	_ = json.NewEncoder(stdin).Encode(map[string]any{"offer": pc.LocalDescription().SDP, "iceServers": configuration.ICEServers, "relay": relay})
-	messages := make(chan map[string]string, 128)
+	encoder := json.NewEncoder(stdin)
+	_ = encoder.Encode(map[string]any{"offer": pc.LocalDescription().SDP, "offerCandidates": []any{}, "iceServers": configuration.ICEServers, "relay": relay})
+	go func() {
+		for candidate := range candidates {
+			_ = encoder.Encode(map[string]any{"candidate": candidate})
+		}
+	}()
+	type helperMessage struct {
+		Type      string                   `json:"type"`
+		Sdp       string                   `json:"sdp"`
+		State     string                   `json:"state"`
+		Message   string                   `json:"message"`
+		Data      string                   `json:"data"`
+		Candidate *webrtc.ICECandidateInit `json:"candidate"`
+	}
+	messages := make(chan helperMessage, 128)
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		scanner.Buffer(make([]byte, 4096), 65536)
 		for scanner.Scan() {
-			var message map[string]string
+			var message helperMessage
 			if json.Unmarshal(scanner.Bytes(), &message) == nil {
 				messages <- message
 			}
 		}
 		close(messages)
 	}()
-	timeout := time.After(12 * time.Second)
+	timeout := time.NewTimer(12 * time.Second)
+	defer timeout.Stop()
 	answered := false
 	for !answered {
 		select {
@@ -95,19 +110,25 @@ func TestRealPeerAudio(t *testing.T) {
 			if !ok {
 				t.Fatal("helper terminated")
 			}
-			if message["type"] == "error" {
-				t.Fatal(message["message"])
+			if message.Type == "error" {
+				t.Fatal(message.Message)
 			}
-			if message["type"] == "answer" {
-				if err = pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: message["sdp"]}); err != nil {
+			if message.Type == "candidate" && message.Candidate != nil {
+				if err = pc.AddICECandidate(*message.Candidate); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if message.Type == "answer" {
+				if err = pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: message.Sdp}); err != nil {
 					t.Fatal(err)
 				}
 				answered = true
 			}
-		case <-timeout:
+		case <-timeout.C:
 			t.Fatal("answer timeout")
 		}
 	}
+	timeout.Reset(12 * time.Second)
 	silence := []byte{0xf8, 0xff, 0xfe} // Valid 20 ms Opus silence frame.
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
@@ -123,17 +144,22 @@ func TestRealPeerAudio(t *testing.T) {
 			if !ok {
 				t.Fatal("receiver stopped")
 			}
-			if message["type"] == "audio" {
-				data, err := base64.StdEncoding.DecodeString(message["data"])
+			if message.Type == "candidate" && message.Candidate != nil {
+				if err = pc.AddICECandidate(*message.Candidate); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if message.Type == "audio" {
+				data, err := base64.StdEncoding.DecodeString(message.Data)
 				if err != nil || !bytes.Equal(data, silence) {
 					t.Fatal("corrupted Opus packet")
 				}
 				count++
 			}
-			if message["type"] == "error" {
-				t.Fatal(message["message"])
+			if message.Type == "error" {
+				t.Fatal(message.Message)
 			}
-		case <-timeout:
+		case <-timeout.C:
 			t.Fatal("audio timeout")
 		}
 	}

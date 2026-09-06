@@ -31,9 +31,10 @@ func run() error {
 		return fmt.Errorf("missing offer")
 	}
 	var input struct {
-		Offer      string             `json:"offer"`
-		IceServers []webrtc.ICEServer `json:"iceServers"`
-		Relay      bool               `json:"relay"`
+		Offer           string                    `json:"offer"`
+		OfferCandidates []webrtc.ICECandidateInit `json:"offerCandidates"`
+		IceServers      []webrtc.ICEServer        `json:"iceServers"`
+		Relay           bool                      `json:"relay"`
 	}
 	if err := json.Unmarshal(scanner.Bytes(), &input); err != nil {
 		return err
@@ -65,12 +66,17 @@ func run() error {
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		emit(map[string]any{"type": "state", "state": state.String()})
 	})
+	pc.OnICECandidate(func(candidate *webrtc.ICECandidate) {
+		if candidate != nil {
+			emit(map[string]any{"type": "candidate", "candidate": candidate.ToJSON()})
+		}
+	})
 	pc.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		if !strings.EqualFold(track.Codec().MimeType, webrtc.MimeTypeOpus) {
 			return
 		}
 		// Reorder a small window of packets. Late packets are discarded rather than accumulating latency.
-		builder := samplebuilder.New(15, &codecs.OpusPacket{}, 48000)
+		builder := samplebuilder.New(3, &codecs.OpusPacket{}, 48000)
 		for {
 			packet, _, err := track.ReadRTP()
 			if err != nil {
@@ -87,24 +93,35 @@ func run() error {
 	if err = pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: input.Offer}); err != nil {
 		return err
 	}
+	for _, candidate := range input.OfferCandidates {
+		if err = pc.AddICECandidate(candidate); err != nil {
+			return err
+		}
+	}
 	answer, err := pc.CreateAnswer(nil)
 	if err != nil {
 		return err
 	}
-	gathered := webrtc.GatheringCompletePromise(pc)
 	if err = pc.SetLocalDescription(answer); err != nil {
 		return err
 	}
-	select {
-	case <-gathered:
-	case <-time.After(1 * time.Second):
-	}
+	// Trickle candidates through the parent instead of delaying the SDP until
+	// TURN/TCP gathering completes.
 	emit(map[string]any{"type": "answer", "sdp": pc.LocalDescription().SDP})
 	done := make(chan struct{})
 	go func() {
 		for scanner.Scan() {
 			if scanner.Text() == "stop" {
 				break
+			}
+			var command struct {
+				Candidate *webrtc.ICECandidateInit `json:"candidate"`
+			}
+			if json.Unmarshal(scanner.Bytes(), &command) == nil && command.Candidate != nil {
+				if err := pc.AddICECandidate(*command.Candidate); err != nil {
+					emit(map[string]any{"type": "error", "message": "invalid remote candidate"})
+					break
+				}
 			}
 		}
 		close(done)
