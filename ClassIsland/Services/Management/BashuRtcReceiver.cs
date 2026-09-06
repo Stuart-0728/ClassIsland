@@ -66,7 +66,9 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
     private async Task PollCoreAsync(BashuPlatformConnection connection, CancellationToken token)
     {
         var receiving = string.Join(",", Sessions.Keys.Where(Receiving));
-        var waitMs = Sessions.Count == 0 ? 15000 : 0;
+        // Stay below the connection's 15 second HTTP timeout so an idle long
+        // poll completes normally instead of racing the client timeout.
+        var waitMs = Sessions.Count == 0 ? 10000 : 0;
         using var data = JsonDocument.Parse(await connection.GetRtcAsync(receiving, waitMs, token));
         var active = data.RootElement.GetProperty("sessions").EnumerateArray().ToArray();
         foreach (var id in Sessions.Keys.Where(id => active.All(item => item.GetProperty("id").GetInt64() != id)).ToArray())
@@ -127,10 +129,10 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
                 switch (root.GetProperty("type").GetString())
                 {
                     case "answer":
-                        await connection.SendRtcAsync(session.Id, new { answer = root.GetProperty("sdp").GetString() });
+                        await SendRtcWithRetryAsync(connection, session.Id, new { answer = root.GetProperty("sdp").GetString() }, session.Stopped.Token);
                         break;
                     case "candidate":
-                        await connection.SendRtcAsync(session.Id, new { candidate = root.GetProperty("candidate").Clone() });
+                        await SendRtcWithRetryAsync(connection, session.Id, new { candidate = root.GetProperty("candidate").Clone() }, session.Stopped.Token);
                         break;
                     case "state":
                         var state = root.GetProperty("state").GetString();
@@ -159,7 +161,7 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
                                 if (previouslyPresented) session.Notification.MaskContent.Duration = TimeSpan.FromMilliseconds(1);
                                 notifications.ShowNotification(session.Notification, Guid.Empty, Guid.Empty, true, false);
                             });
-                            await connection.SendRtcAsync(session.Id, new { state = "connected" });
+                            await SendRtcWithRetryAsync(connection, session.Id, new { state = "connected" }, session.Stopped.Token);
                         }
                         session.Buffer.Enabled = session.Notification?.State == NotificationState.Playing;
                         session.Buffer.Push(decoded.AsSpan(0, count));
@@ -178,6 +180,21 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
             session.Process?.Dispose();
             try { await connection.SendRtcAsync(session.Id, new { state = "failed" }); } catch { }
         }
+    }
+    private static async Task SendRtcWithRetryAsync(BashuPlatformConnection connection, long sessionId, object payload, CancellationToken token)
+    {
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            token.ThrowIfCancellationRequested();
+            try { await connection.SendRtcAsync(sessionId, payload); return; }
+            catch (Exception error) when (attempt < 2)
+            {
+                lastError = error;
+                await Task.Delay(TimeSpan.FromMilliseconds(150 * (attempt + 1)), token);
+            }
+        }
+        throw lastError ?? new IOException("实时对讲信令发送失败");
     }
     private Task StartPlaybackAsync(Reception session) => Task.Run(async () =>
     {

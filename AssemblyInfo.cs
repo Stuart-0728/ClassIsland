@@ -6,8 +6,8 @@ using ClassIsland;
 [assembly: AssemblyVersion("0.0.0.0")]
 [assembly: AssemblyInformationalVersion("NIXBUILD+NIXBUILD_LONG_HASH")]
 #else
-[assembly: AssemblyVersion("2.1.8.0")]
-[assembly: AssemblyFileVersion("2.1.8.0")]
+[assembly: AssemblyVersion("2.1.9.0")]
+[assembly: AssemblyFileVersion("2.1.9.0")]
 [assembly: AssemblyInformationalVersion($"{GitInfo.Tag}+{GitInfo.CommitHash}")]
 #endif
 

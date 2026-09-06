@@ -57,7 +57,12 @@ func run() error {
 	if input.Relay {
 		configuration.ICETransportPolicy = webrtc.ICETransportPolicyRelay
 	}
-	pc, err := webrtc.NewAPI(webrtc.WithMediaEngine(engine), webrtc.WithInterceptorRegistry(interceptors)).
+	settings := webrtc.SettingEngine{}
+	// Pion's five-second disconnected default is too aggressive for school
+	// Wi-Fi and cellular TURN paths. Keep ICE consent checks frequent while
+	// allowing short routing gaps to recover without dropping live audio.
+	settings.SetICETimeouts(30*time.Second, 60*time.Second, 2*time.Second)
+	pc, err := webrtc.NewAPI(webrtc.WithMediaEngine(engine), webrtc.WithInterceptorRegistry(interceptors), webrtc.WithSettingEngine(settings)).
 		NewPeerConnection(configuration)
 	if err != nil {
 		return err

@@ -188,9 +188,9 @@ public class BashuPlatformService : IHostedService
             var json = await conn.PollAsync(Shutdown.Token);
             if (string.IsNullOrWhiteSpace(json))
             {
-                RtcReceiver.Stop();
                 Status = conn.LastError;
-                // 网络异常或断开时，自适应降频至 5 秒一次，减少 CPU 资源空耗
+                // The media path is independent after ICE connects. A transient
+                // dashboard polling failure must not tear down live intercom.
                 if (PollTimer != null && PollTimer.Interval != TimeSpan.FromSeconds(5))
                 {
                     PollTimer.Interval = TimeSpan.FromSeconds(5);
