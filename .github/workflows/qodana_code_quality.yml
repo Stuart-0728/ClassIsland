@@ -15,17 +15,19 @@ jobs:
       pull-requests: write
       checks: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}  # to check out the actual pull request commit, not the merge commit
           fetch-depth: 0  # a full history is required for pull request analysis
           submodules: recursive
-      - name: Install .NET Core
-        uses: actions/setup-dotnet@v3
+      - name: Install .NET SDKs
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            8.0.x
+            9.0.x
       - name: Build Project
-        run: dotnet build
+        run: dotnet build ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=x64
       - name: 'Qodana Scan'
         uses: JetBrains/qodana-action@v2025.1
         with:
