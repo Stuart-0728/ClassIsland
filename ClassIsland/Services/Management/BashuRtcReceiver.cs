@@ -87,7 +87,8 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
                 ? initialCandidates.Clone()
                 : JsonSerializer.SerializeToElement(Array.Empty<object>());
             reception.RememberCandidates(offerCandidates);
-            var input = JsonSerializer.Serialize(new { offer = item.GetProperty("offer").GetString(), offerCandidates, iceServers = data.RootElement.GetProperty("iceServers").Clone() });
+            var relay = data.RootElement.TryGetProperty("relay", out var relayProperty) && relayProperty.ValueKind == JsonValueKind.True;
+            var input = JsonSerializer.Serialize(new { offer = item.GetProperty("offer").GetString(), offerCandidates, iceServers = data.RootElement.GetProperty("iceServers").Clone(), relay });
             _ = RunAsync(connection, reception, input);
         }
     }
