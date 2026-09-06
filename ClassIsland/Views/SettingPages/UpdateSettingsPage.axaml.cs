@@ -75,7 +75,7 @@ public partial class UpdateSettingsPage : SettingsPageBase
     
     private async void ButtonCheckUpdate_OnClick(object sender, RoutedEventArgs e)
     {
-        await ViewModel.UpdateService.CheckUpdateAsync();
+        await ViewModel.UpdateService.CheckUpdateAsync(isManual: true);
     }
 
     private async void ButtonDownloadUpdate_OnClick(object sender, RoutedEventArgs e)
@@ -158,7 +158,7 @@ public partial class UpdateSettingsPage : SettingsPageBase
 
     private async void SettingsExpanderItemCheckUpdateForce_OnClick(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.UpdateService.CheckUpdateAsync(true);
+        await ViewModel.UpdateService.CheckUpdateAsync(true, isManual: true);
     }
 
     private void ButtonShowChangeLogs_OnClick(object? sender, RoutedEventArgs e)

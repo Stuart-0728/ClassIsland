@@ -348,35 +348,22 @@
                             <controls:SettingsExpander.Footer>
                                 <ComboBox SelectedIndex="{Binding ViewModel.SettingsService.Settings.UpdateMode}">
                                     <ComboBoxItem>从不自动更新</ComboBoxItem>
-                                    <ComboBoxItem>自动检查更新并通知</ComboBoxItem>
-                                    <ComboBoxItem>自动检查更新并下载</ComboBoxItem>
-                                    <ComboBoxItem>自动检查更新并安装</ComboBoxItem>
+                                    <ComboBoxItem>自动检查特供版更新并通知</ComboBoxItem>
                                 </ComboBox>
                             </controls:SettingsExpander.Footer>
                         </controls:SettingsExpander>
                         
                         <!-- 更新通道 -->
                         <controls:SettingsExpander IconSource="{ci:FluentIconSource &#xe3d2;}"
-                                                   Header="更新通道" IsExpanded="True"
-                                                   Description="控制应用的更新目标版本。版本的发行节奏和稳定程度因更新通道而异，部分通道可能包含不稳定的功能，请谨慎使用。">
-                            <controls:SettingsExpander.Footer>
-                                <ComboBox ItemsSource="{Binding ViewModel.UpdateService.DistributionMetadata.Channels}"
-                                          SelectedValueBinding="{Binding Key}"
-                                          SelectedValue="{Binding ViewModel.SettingsService.Settings.SelectedUpdateChannelV3}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Value.Name}"/>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </controls:SettingsExpander.Footer>
+                                                   Header="智慧教研特供版" IsExpanded="True"
+                                                   Description="更新只来自 Stuart-0728/ClassIsland 特供版仓库，不会安装普通 ClassIsland 版本。">
                             <controls:SettingsExpanderItem>
-                                <TextBlock Text="{Binding ViewModel.SelectedChannel.Description}" TextWrapping="Wrap"/>
+                                <TextBlock Text="发现新版本后会打开 GitHub 特供版下载页，由教师确认后安装。" TextWrapping="Wrap"/>
                             </controls:SettingsExpanderItem>
-                            <controls:SettingsExpanderItem Content="强制检查更新"
+                            <controls:SettingsExpanderItem Content="检查特供版更新"
                                                            IsClickEnabled="True"
                                                            Click="SettingsExpanderItemCheckUpdateForce_OnClick"
-                                                           Description="强制将应用更新到当前通道上的最新版本，即使此版本比应用当前版本更旧。"
+                                                           Description="检查智慧教研特供版仓库中的最新版本。"
                                                            ActionIconSource="{ci:FluentIconSource &#xe44e;}">
                             </controls:SettingsExpanderItem>
                         </controls:SettingsExpander>

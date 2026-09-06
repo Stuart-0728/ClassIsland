@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.1.10-bashu'
+        default: 'v2.1.11-bashu'
         type: string
   push:
     branches:
@@ -28,7 +28,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.10-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.11-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -65,7 +65,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.1.10 -p:AssemblyVersion=2.1.10.0 -p:FileVersion=2.1.10.0 -p:ApplicationVersion=2.1.10 -p:ApplicationDisplayVersion=2.1.10 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.1.11 -p:AssemblyVersion=2.1.11.0 -p:FileVersion=2.1.11.0 -p:ApplicationVersion=2.1.11 -p:ApplicationDisplayVersion=2.1.11 -o ${{ github.workspace }}/out_publish
 
       - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
         shell: pwsh
@@ -102,9 +102,9 @@ jobs:
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.1.10.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.1.11.0") { throw "Unexpected application version: $version" }
           $fileVersion = (Get-Item "${{ github.workspace }}/out_publish/ClassIsland.dll").VersionInfo.FileVersion
-          if ($fileVersion -notlike "2.1.10.0*") { throw "Unexpected file version: $fileVersion" }
+          if ($fileVersion -notlike "2.1.11.0*") { throw "Unexpected file version: $fileVersion" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -117,7 +117,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.1.10
+            /DAppVersion=2.1.11
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -146,7 +146,7 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.10-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.1.11-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -186,7 +186,8 @@ jobs:
 
             本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
 
-            ### 核心更新与修复 (v2.1.10)
+            ### 核心更新与修复 (v2.1.11)
+            - **特供版更新通道锁定：** 内置检查更新只查询 `Stuart-0728/ClassIsland` 的智慧教研特供版，不再连接普通 ClassIsland 差分更新通道，也不会被普通版自动覆盖。
             - **实时音频解码修复：** 根据现场日志修复偶发空帧或损坏 Opus 帧导致整个 WebRTC 会话退出的问题；异常帧会被安全丢弃，后续语音继续实时播放。
             - **并发对讲仲裁：** 同一班级同时出现多个发言时只保留一个实时音频与灵动岛；紧急广播优先，普通广播不会抢占紧急广播。
             - **可诊断日志：** 对讲失败会记录会话编号、真实异常消息和 Opus 错误码，便于现场精确排障。

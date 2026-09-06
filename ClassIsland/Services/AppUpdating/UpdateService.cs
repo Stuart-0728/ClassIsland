@@ -8,6 +8,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -59,6 +60,8 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
     private string _currentWorkingMessage = "";
 
     private const string PhainonRootUrl = "https://distribution.classisland.tech";
+    private const string BashuLatestReleaseApi = "https://api.github.com/repos/Stuart-0728/ClassIsland/releases/latest";
+    private static bool IsBashuEdition => true;
 
     internal static string UpdateCachePath { get; } = Path.Combine(CommonDirectories.AppCacheFolderPath, "Update");
 
@@ -159,6 +162,10 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
         SplashService = splashService;
         Logger = logger;
 
+        // The special edition publishes complete signed-by-checksum installers
+        // on GitHub. It never applies upstream differential packages in place.
+        if (IsBashuEdition && Settings.UpdateMode > 1) Settings.UpdateMode = 1;
+
         var keyStream = AssetLoader.Open(new Uri("avares://ClassIsland/Assets/TrustedPublicKeys/ClassIsland.MetadataPublisher.asc", UriKind.RelativeOrAbsolute));
         MetadataPublisherPublicKey = new StreamReader(keyStream).ReadToEnd();
 
@@ -252,10 +259,18 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
     }
 
 
-    public async Task CheckUpdateAsync(bool isForce=false, bool isCancel=false)
+    public async Task CheckUpdateAsync(bool isForce=false, bool isCancel=false, bool isManual=false)
     {
         if (!AllowedPackageTypes.Contains(AppBase.Current.PackagingType))
         {
+            return;
+        }
+        // This fork is distributed independently from upstream ClassIsland.
+        // Never let the upstream differential updater replace the school-managed
+        // build with a normal release that does not contain the platform client.
+        if (IsBashuEdition)
+        {
+            await CheckBashuEditionUpdateAsync(isManual || isForce);
             return;
         }
         var transaction = SentrySdk.StartTransaction("Get Update Info", "appUpdating.getMetadata");
@@ -305,6 +320,50 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
             transaction.GetLastActiveSpan()?.Finish(ex, SpanStatus.InternalError);
             transaction.Finish(ex, SpanStatus.InternalError);
             Logger.LogError(ex, "检查应用更新失败。");
+        }
+        finally
+        {
+            Settings.LastCheckUpdateTime = DateTime.Now;
+            UpdateInfoUpdated?.Invoke(this, EventArgs.Empty);
+            CurrentWorkingStatus = UpdateWorkingStatus.Idle;
+        }
+    }
+
+    private async Task CheckBashuEditionUpdateAsync(bool showResult)
+    {
+        NetworkErrorException = null;
+        DeployErrorException = null;
+        CurrentWorkingStatus = UpdateWorkingStatus.CheckingUpdates;
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("ClassIsland-Bashu-Edition/" + AppBase.AppVersion);
+            using var response = await client.GetAsync(BashuLatestReleaseApi);
+            response.EnsureSuccessStatusCode();
+            using var release = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var root = release.RootElement;
+            var tag = root.GetProperty("tag_name").GetString() ?? "";
+            var page = root.GetProperty("html_url").GetString() ?? "https://github.com/Stuart-0728/ClassIsland/releases";
+            var match = Regex.Match(tag, @"v(?<version>\d+\.\d+\.\d+)", RegexOptions.CultureInvariant);
+            var latest = match.Success ? Version.Parse(match.Groups["version"].Value) : new Version();
+            var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version();
+            Settings.LastUpdateStatus = UpdateStatus.UpToDate;
+            if (latest > current)
+            {
+                await PlatformServices.DesktopToastService.ShowToastAsync("发现智慧教研特供版更新",
+                    $"{current.ToString(3)} → {latest.ToString(3)}，点击打开特供版下载页面。",
+                    () => IAppHost.GetService<IUriNavigationService>().Navigate(new Uri(page)));
+            }
+            else if (showResult)
+            {
+                await PlatformServices.DesktopToastService.ShowToastAsync("已经是最新特供版",
+                    $"当前版本 {current.ToString(3)}，不会切换到普通 ClassIsland 更新通道。", null);
+            }
+        }
+        catch (Exception error)
+        {
+            NetworkErrorException = error;
+            Logger.LogError(error, "检查智慧教研特供版更新失败。");
         }
         finally
         {
