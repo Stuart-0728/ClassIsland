@@ -140,6 +140,9 @@ jobs:
 
   release:
     name: Publish Release to GitHub
+    # Branch pushes validate both architectures and retain workflow artifacts.
+    # Publishing a named release is explicit so an immutable tag is never overwritten.
+    if: github.event_name == 'workflow_dispatch'
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
