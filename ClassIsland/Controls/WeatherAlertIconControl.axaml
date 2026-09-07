@@ -1,0 +1,39 @@
+<UserControl x:Class="ClassIsland.Controls.WeatherAlertIconControl"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ci="http://classisland.tech/schemas/xaml/core"
+             xmlns:local="clr-namespace:ClassIsland.Controls"
+             xmlns:asyncImageLoader="clr-namespace:AsyncImageLoader;assembly=AsyncImageLoader.Avalonia">
+    <UserControl.Styles>
+        <!-- 核心保护：屏蔽气象预警控件内 AdvancedImage 错误样式的红色背景与红色斜杠 -->
+        <Style Selector="asyncImageLoader|AdvancedImage.alert-image /template/ Border#LoadingBorder">
+            <Setter Property="IsVisible" Value="False"/>
+        </Style>
+        <Style Selector="asyncImageLoader|AdvancedImage.alert-image /template/ ci|FluentIcon#FluentIconError">
+            <Setter Property="IsVisible" Value="False"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=local:WeatherAlertIconControl}}"
+          Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=local:WeatherAlertIconControl}}"
+          ToolTip.Tip="{Binding DisplayAlert.Detail, RelativeSource={RelativeSource AncestorType=local:WeatherAlertIconControl}}">
+        
+        <!-- 底座层：永不图裂的高保真矢量预警徽章 -->
+        <Border CornerRadius="5"
+                Background="{Binding DisplayAlert.AlertColorBrush, RelativeSource={RelativeSource AncestorType=local:WeatherAlertIconControl}}"
+                ClipToBounds="True">
+            <ci:LucideIcon Glyph="{Binding DisplayAlert.AlertLucideGlyph, RelativeSource={RelativeSource AncestorType=local:WeatherAlertIconControl}}"
+                           Foreground="White"
+                           FontSize="{Binding VectorIconSize, RelativeSource={RelativeSource AncestorType=local:WeatherAlertIconControl}}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+        </Border>
+
+        <!-- 顶层：图片层（本地 avares:// 资源或网络图片） -->
+        <asyncImageLoader:AdvancedImage Classes="alert-image"
+                                        Source="{Binding DisplayAlert.SafeIconSource, RelativeSource={RelativeSource AncestorType=local:WeatherAlertIconControl}}"
+                                        Stretch="UniformToFill"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch" />
+    </Grid>
+</UserControl>

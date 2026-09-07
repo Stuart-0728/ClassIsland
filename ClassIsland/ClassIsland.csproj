@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <Nullable>enable</Nullable>
         <UseWPF>false</UseWPF>
@@ -117,6 +117,7 @@
         <AvaloniaResource Remove="Assets\Localization\SettingsPage\Localization.SettingsPage.resx" />
         <AvaloniaResource Remove="Assets\Localization\TrayMenu\Localization.TrayMenu.resx" />
         <None Include="Assets\AppLogo.png" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" PublishFolderType="Resource" />
+        <AvaloniaResource Include="Assets\WeatherAlerts\**" />
     </ItemGroup>
     <ItemGroup Condition="'$(Configuration)' == 'Debug' Or '$(Configuration)' == 'Debug_MSIX'">
         <AvaloniaResource Include="Assets\**" />
@@ -130,9 +131,11 @@
         <None Remove="Assets\AppLogo.ico" />
         <None Remove="Assets\Tutorials\**" />
         <None Remove="Assets\TrustedPublicKeys\**" />
+        <None Remove="Assets\WeatherAlerts\**" />
         <AvaloniaResource Include="Assets\Tutorials\**" />
         <AvaloniaResource Include="Assets\TrustedPublicKeys\**" />
         <AvaloniaResource Include="Assets\AppLogo.ico" />
+        <AvaloniaResource Include="Assets\WeatherAlerts\**" />
     </ItemGroup>
     <ItemGroup>
         <None Include="Assets\AppLogo_Monochrome.png" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" PublishFolderType="Resource" />

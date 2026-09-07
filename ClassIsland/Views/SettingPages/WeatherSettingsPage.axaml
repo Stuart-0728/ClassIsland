@@ -136,8 +136,7 @@
                                 <Expander Margin="0 4 0 0" Padding="12 8">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <asyncImageLoader:AdvancedImage Width="22" Height="22"
-                                                                            Source="{Binding Images[icon]}" />
+                                            <controls2:WeatherAlertIconControl Alert="{Binding}" IconSize="22" />
                                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="Medium" />
                                         </StackPanel>
                                     </Expander.Header>
