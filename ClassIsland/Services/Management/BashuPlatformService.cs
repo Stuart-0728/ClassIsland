@@ -452,7 +452,8 @@ public class BashuPlatformService : IHostedService
                                 PriorityOverride = emergency ? 200 : 50,
                                 RequestNotificationSettings = { IsSettingsEnabled = true, IsSpeechEnabled = false, IsNotificationSoundEnabled = false, IsNotificationTopmostEnabled = true }
                             };
-                            IntercomNotification.MaskContent.Duration = TimeSpan.FromMilliseconds(1);
+                            // 保留 5 秒醒目遮罩动画，音频在动画弹出的第 1 毫秒同步开始播放，无需等待动画结束
+                            IntercomNotification.MaskContent.Duration = TimeSpan.FromSeconds(5);
                             NotificationHostService.ShowNotification(IntercomNotification, Guid.Empty, Guid.Empty, true, false);
                         }
                         // Audio must not race ahead of its island while another notification is speaking.

@@ -183,7 +183,8 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
                                     IsPriorityOverride = true, PriorityOverride = session.Emergency ? 200 : 50,
                                     RequestNotificationSettings = { IsSettingsEnabled = true, IsSpeechEnabled = false, IsNotificationSoundEnabled = false, IsNotificationTopmostEnabled = true }
                                 };
-                                session.Notification.MaskContent.Duration = TimeSpan.FromMilliseconds(1);
+                                // 保留 5 秒醒目遮罩动画，音频在动画弹出的第 1 瞬间同步开播
+                                session.Notification.MaskContent.Duration = TimeSpan.FromSeconds(5);
                                 notifications.ShowNotification(session.Notification, Guid.Empty, Guid.Empty, true, false);
                             });
                             await SendRtcWithRetryAsync(connection, session.Id, new { state = "connected" }, session.Stopped.Token);
