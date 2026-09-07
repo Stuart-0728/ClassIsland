@@ -11,6 +11,8 @@ on:
   push:
     branches:
       - master
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -28,7 +30,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.2.1-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.1-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -142,11 +144,11 @@ jobs:
     name: Publish Release to GitHub
     # Branch pushes validate both architectures and retain workflow artifacts.
     # Publishing a named release is explicit so an immutable tag is never overwritten.
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || 'v2.2.1-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.1-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
