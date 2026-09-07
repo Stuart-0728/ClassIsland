@@ -176,19 +176,20 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
                             {
                                 session.Stopped.Token.ThrowIfCancellationRequested();
                                 session.HasAudio = true;
-                                var previouslyPresented = AudioStarted?.Invoke(session.Id) == true;
+                                AudioStarted?.Invoke(session.Id);
                                 session.Notification = new NotificationRequest {
                                     MaskContent = NotificationContent.CreateTwoIconsMask($"{(session.Emergency ? "紧急广播" : "实时对讲")} · {session.Author}"),
                                     OverlayContent = NotificationContent.CreateSimpleTextContent($"{session.Author} 正在讲话", content => content.Duration = TimeSpan.FromMinutes(20)),
                                     IsPriorityOverride = true, PriorityOverride = session.Emergency ? 200 : 50,
                                     RequestNotificationSettings = { IsSettingsEnabled = true, IsSpeechEnabled = false, IsNotificationSoundEnabled = false, IsNotificationTopmostEnabled = true }
                                 };
-                                if (previouslyPresented) session.Notification.MaskContent.Duration = TimeSpan.FromMilliseconds(1);
+                                session.Notification.MaskContent.Duration = TimeSpan.FromMilliseconds(1);
                                 notifications.ShowNotification(session.Notification, Guid.Empty, Guid.Empty, true, false);
                             });
                             await SendRtcWithRetryAsync(connection, session.Id, new { state = "connected" }, session.Stopped.Token);
                         }
-                        session.Buffer.Enabled = session.Notification?.State == NotificationState.Playing;
+                        session.Buffer.Enabled = !session.Stopped.IsCancellationRequested &&
+                                                 (session.Notification == null || session.Notification.State is NotificationState.Queued or NotificationState.Playing);
                         session.Buffer.Push(decoded.AsSpan(0, count));
                         break;
                     case "error": throw new IOException("实时音频组件连接失败");
