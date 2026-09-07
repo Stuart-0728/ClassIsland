@@ -121,6 +121,17 @@ public partial class JoinManagementDialog : MyWindow
                 ViewModel.ManagementSettings.BashuDeviceName = ViewModel.BashuDeviceName;
             }
             await ManagementService.JoinManagementAsync(ViewModel.ManagementSettings);
+            if (ViewModel.IsBashuMode)
+            {
+                try
+                {
+                    if (OperatingSystem.IsWindows() && !ClassIsland.Platforms.Abstraction.PlatformServices.DesktopService.IsAutoStartEnabled)
+                    {
+                        ClassIsland.Platforms.Abstraction.PlatformServices.DesktopService.IsAutoStartEnabled = true;
+                    }
+                }
+                catch { }
+            }
             Close();
         }
         catch (Exception exception)

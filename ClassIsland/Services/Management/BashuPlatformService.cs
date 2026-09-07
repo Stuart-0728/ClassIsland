@@ -126,6 +126,7 @@ public class BashuPlatformService : IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         Logger.LogInformation("启动两江巴蜀智慧教研平台同步托管服务");
+        EnsureAutoStartEnabled();
         PollTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(1)
@@ -135,6 +136,26 @@ public class BashuPlatformService : IHostedService
         _ = PollOnceAsync();
         return Task.CompletedTask;
     }
+
+    private void EnsureAutoStartEnabled()
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows() &&
+                Connection != null &&
+                !string.IsNullOrWhiteSpace(Connection.Settings.BashuDeviceToken) &&
+                !ClassIsland.Platforms.Abstraction.PlatformServices.DesktopService.IsAutoStartEnabled)
+            {
+                Logger.LogInformation("检测到已绑定班级大屏，自动开启 Windows 开机自启动");
+                ClassIsland.Platforms.Abstraction.PlatformServices.DesktopService.IsAutoStartEnabled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "尝试自动开启开机自启动时发生异常");
+        }
+    }
+
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
@@ -163,12 +184,13 @@ public class BashuPlatformService : IHostedService
         {
             if (LastConnection != conn)
             {
-                LastConnection = conn;
+                EnsureAutoStartEnabled();
                 RtcReceiver.Stop();
                 CurrentAudioCancellation?.Cancel();
                 NormalAudioQueue.Clear(); EmergencyAudioQueue.Clear();
                 InterruptedAudio = null;
                 IntercomNotification?.Cancel(); IntercomNotification = null; DisplayedIntercomSession = 0;
+                LastConnection = conn;
                 LastScheduleSignature = "";
                 ProcessedNotificationIds.Clear(); ProcessedNotificationOrder.Clear();
                 ProcessedIntercomSegmentIds.Clear(); ProcessedIntercomSegmentOrder.Clear();
