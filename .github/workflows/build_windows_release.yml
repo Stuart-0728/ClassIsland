@@ -104,9 +104,9 @@ jobs:
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.2.1.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.2.2.0") { throw "Unexpected application version: $version" }
           $fileVersion = (Get-Item "${{ github.workspace }}/out_publish/ClassIsland.dll").VersionInfo.FileVersion
-          if ($fileVersion -notlike "2.2.1.0*") { throw "Unexpected file version: $fileVersion" }
+          if ($fileVersion -notlike "2.2.2.0*") { throw "Unexpected file version: $fileVersion" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -119,7 +119,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.2.1
+            /DAppVersion=2.2.2
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -148,7 +148,7 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.1-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.2-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -188,7 +188,9 @@ jobs:
 
             本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
 
-            ### 核心更新与修复 (v2.2.1)
+            ### 核心更新与修复 (v2.2.2)
+            - **对讲延迟与卡顿彻底消除：** 将对讲通知遮罩时间缩短为瞬时（1 毫秒），消除灵动岛默认停留 5 秒动画的阻塞等待，音频与灵动岛展开完全毫秒级同步并发。
+            - **实时音频缓冲区零丢帧防吞字：** 优化对讲首包进入缓冲区的门控判定，在排队入场与播放阶段持续使能缓冲，杜绝开播前摇吃字与断续卡顿。
             - **默认开机自启动支持：** 安装包默认在 Windows 启动项（`userstartup`）写入快捷方式，无需手动配置即可实现开机自动拉起并上线。
             - **已绑定大屏开机自愈保活：** 大屏只要处于已配对绑定班级状态，运行启动或后台连接平台时将自动检测并恢复自启动状态，彻底杜绝关机断电重启后大屏离线的问题。
             - **全双工 WebSocket 流式对讲升级：** 全面对接两江巴蜀智慧教研平台 WebSocket 全双工流式对讲与低延迟播放缓冲机制，彻底消除传统兼容模式下的初始连接与播放卡顿，实现毫秒级即按即通。
