@@ -58,6 +58,10 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
     private TimeSpan _downloadEtcSeconds = TimeSpan.Zero;
     private DistributionInfoClient _distributionInfo;
     private string _currentWorkingMessage = "";
+    private bool _isBashuUpdateAvailable;
+    private string _bashuLatestVersion = "";
+    private string _bashuReleasePageUrl = "https://github.com/Stuart-0728/ClassIsland/releases";
+    private string _bashuReleaseNotes = "";
 
     private const string PhainonRootUrl = "https://distribution.classisland.tech";
     private const string BashuLatestReleaseApi = "https://api.github.com/repos/Stuart-0728/ClassIsland/releases/latest";
@@ -107,6 +111,32 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
     {
         get => _currentWorkingMessage;
         set => SetField(ref _currentWorkingMessage, value);
+    }
+
+    public bool IsBashuEditionClient => IsBashuEdition;
+
+    public bool IsBashuUpdateAvailable
+    {
+        get => _isBashuUpdateAvailable;
+        private set => SetField(ref _isBashuUpdateAvailable, value);
+    }
+
+    public string BashuLatestVersion
+    {
+        get => _bashuLatestVersion;
+        private set => SetField(ref _bashuLatestVersion, value);
+    }
+
+    public string BashuReleasePageUrl
+    {
+        get => _bashuReleasePageUrl;
+        private set => SetField(ref _bashuReleasePageUrl, value);
+    }
+
+    public string BashuReleaseNotes
+    {
+        get => _bashuReleaseNotes;
+        private set => SetField(ref _bashuReleaseNotes, value);
     }
 
     public bool IsDownloadingProgressIndeterminate
@@ -344,12 +374,18 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
             var root = release.RootElement;
             var tag = root.GetProperty("tag_name").GetString() ?? "";
             var page = root.GetProperty("html_url").GetString() ?? "https://github.com/Stuart-0728/ClassIsland/releases";
+            BashuReleasePageUrl = page;
+            BashuReleaseNotes = root.TryGetProperty("body", out var body) ? body.GetString() ?? "" : "";
             var match = Regex.Match(tag, @"v?(?<version>\d+\.\d+\.\d+(\.\d+)?)", RegexOptions.CultureInvariant);
             var latest = match.Success ? Version.Parse(match.Groups["version"].Value) : new Version();
             var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version();
             var normLatest = new Version(Math.Max(0, latest.Major), Math.Max(0, latest.Minor), Math.Max(0, latest.Build));
             var normCurrent = new Version(Math.Max(0, current.Major), Math.Max(0, current.Minor), Math.Max(0, current.Build));
-            Settings.LastUpdateStatus = UpdateStatus.UpToDate;
+            BashuLatestVersion = latest.ToString(3);
+            IsBashuUpdateAvailable = normLatest > normCurrent;
+            Settings.LastUpdateStatus = IsBashuUpdateAvailable
+                ? UpdateStatus.UpdateAvailable
+                : UpdateStatus.UpToDate;
             if (normLatest > normCurrent)
             {
                 await PlatformServices.DesktopToastService.ShowToastAsync("发现智慧教研特供版更新",
@@ -373,6 +409,11 @@ public class UpdateService : IHostedService, INotifyPropertyChanged
             UpdateInfoUpdated?.Invoke(this, EventArgs.Empty);
             CurrentWorkingStatus = UpdateWorkingStatus.Idle;
         }
+    }
+
+    public void OpenBashuReleasePage()
+    {
+        IAppHost.GetService<IUriNavigationService>().Navigate(new Uri(BashuReleasePageUrl));
     }
 
     private string GetCurrentSubChannel()

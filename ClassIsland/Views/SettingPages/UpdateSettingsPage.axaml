@@ -129,7 +129,7 @@
                         </Binding>
                     </TextBlock.IsVisible>
                     <Run Text="发现新版本："/>
-                    <Run Text="{Binding ViewModel.UpdateService.DistributionInfo.Version, Mode=OneWay}" />
+                    <Run Text="{Binding ViewModel.UpdateService.BashuLatestVersion, Mode=OneWay}" />
                 </TextBlock>
             </Grid>
             <controls:InfoBar Severity="Error" Title="更新时发生错误，请检查您的网络连接并重试。"
@@ -178,14 +178,18 @@
                         </MenuFlyout>
                     </SplitButton.Flyout>
                     <Button.IsVisible>
-                        <Binding Path="ViewModel.SettingsService.Settings.LastUpdateStatus"
-                                 Converter="{x:Static ObjectConverters.Equal}">
-                            <Binding.ConverterParameter>
-                                <enums:UpdateStatus>UpdateAvailable</enums:UpdateStatus>
-                            </Binding.ConverterParameter>
-                        </Binding>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="ViewModel.SettingsService.Settings.LastUpdateStatus"
+                                     Converter="{x:Static ObjectConverters.Equal}"
+                                     ConverterParameter="{x:Static enums:UpdateStatus.UpdateAvailable}" />
+                            <Binding Path="ViewModel.UpdateService.IsBashuEditionClient"
+                                     Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="False" />
+                        </MultiBinding>
                     </Button.IsVisible>
                 </SplitButton>
+                <Button Content="打开特供版下载页" Classes="accent" Margin="4"
+                        Click="ButtonOpenBashuUpdate_OnClick"
+                        IsVisible="{Binding ViewModel.UpdateService.IsBashuUpdateAvailable}" />
                 <Button Content="安装更新" Classes="accent" Margin="4"
                         Click="ButtonDeployUpdate_OnClick"> 
                     <Button.IsVisible>

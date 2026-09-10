@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.2.3-bashu'
+        default: 'v2.2.5-bashu'
         type: string
   push:
     branches:
@@ -30,7 +30,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.4-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.5-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.1 -p:AssemblyVersion=2.2.1.0 -p:FileVersion=2.2.1.0 -p:ApplicationVersion=2.2.1 -p:ApplicationDisplayVersion=2.2.1 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.5 -p:AssemblyVersion=2.2.5.0 -p:FileVersion=2.2.5.0 -p:ApplicationVersion=2.2.5 -p:ApplicationDisplayVersion=2.2.5 -o ${{ github.workspace }}/out_publish
 
       - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
         shell: pwsh
@@ -104,9 +104,9 @@ jobs:
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.2.4.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.2.5.0") { throw "Unexpected application version: $version" }
           $fileVersion = (Get-Item "${{ github.workspace }}/out_publish/ClassIsland.dll").VersionInfo.FileVersion
-          if ($fileVersion -notlike "2.2.4.0*") { throw "Unexpected file version: $fileVersion" }
+          if ($fileVersion -notlike "2.2.5.0*") { throw "Unexpected file version: $fileVersion" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -119,7 +119,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.2.4
+            /DAppVersion=2.2.5
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -148,7 +148,7 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.3-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.5-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -188,13 +188,14 @@ jobs:
 
             本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
 
-            ### 核心更新与修复 (v2.2.3)
+            ### 核心更新与修复 (v2.2.5)
+            - **安全维护与兼容打包：** 配套平台上传组件完成拒绝服务漏洞修复，客户端按 2.2.5 版本重新生成 x64、ARM64 安装包与便携包；升级安装保留原有班级绑定、课表、天气、通知、语音和对讲设置。
             - **保留 5 秒醒目遮罩动画且第 0 毫秒同步发声：** 保留灵动岛大胶囊 5 秒遮罩入场展示动效，同时彻底打破过去等 5 秒动画放完才出声的串行阻塞，声音在动画弹出的第 1 瞬间同步开播，画面展开与声音完全并发。
             - **实时音频缓冲区零丢帧防吞字：** 优化对讲首包进入缓冲区的门控判定，在排队入场与播放阶段持续使能缓冲，杜绝开播前摇吃字与断续卡顿。
             - **默认开机自启动支持：** 安装包默认在 Windows 启动项（`userstartup`）写入快捷方式，无需手动配置即可实现开机自动拉起并上线。
             - **已绑定大屏开机自愈保活：** 大屏只要处于已配对绑定班级状态，运行启动或后台连接平台时将自动检测并恢复自启动状态，彻底杜绝关机断电重启后大屏离线的问题。
             - **全双工 WebSocket 流式对讲升级：** 全面对接两江巴蜀智慧教研平台 WebSocket 全双工流式对讲与低延迟播放缓冲机制，彻底消除传统兼容模式下的初始连接与播放卡顿，实现毫秒级即按即通。
-            - **版本基线与特供更新源同步：** 正式将智慧教研特供版升级至 2.2.1 基线，匹配平台最新规范，消除了 2.1.11 自动检查更新提示。
+            - **版本基线与特供更新源同步：** 正式将智慧教研特供版升级至 2.2.5 基线，手动检查与后台检查统一显示特供版更新状态，不再出现系统通知提示有新版、设置页却显示最新的矛盾。
             - **特供版更新通道锁定：** 内置检查更新只查询 `Stuart-0728/ClassIsland` 的智慧教研特供版，不再连接普通 ClassIsland 差分更新通道，也不会被普通版自动覆盖。
             - **实时音频解码修复：** 根据现场日志修复偶发空帧或损坏 Opus 帧导致整个 WebRTC 会话退出的问题；异常帧会被安全丢弃，后续语音继续实时播放。
             - **并发对讲仲裁：** 同一班级同时出现多个发言时只保留一个实时音频与灵动岛；紧急广播优先，普通广播不会抢占紧急广播。

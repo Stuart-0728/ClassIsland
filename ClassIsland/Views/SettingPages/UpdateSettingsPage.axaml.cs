@@ -87,6 +87,11 @@ public partial class UpdateSettingsPage : SettingsPageBase
         }
     }
 
+    private void ButtonOpenBashuUpdate_OnClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel.UpdateService.OpenBashuReleasePage();
+    }
+
     private void UpdateChannelInfo()
     {
         ViewModel.SelectedChannel =
@@ -98,6 +103,13 @@ public partial class UpdateSettingsPage : SettingsPageBase
 
     private void UpdateNewVersionChangeLog()
     {
+        if (ViewModel.UpdateService.IsBashuEditionClient)
+        {
+            ViewModel.NewVersionChangeLogDocument = ViewModel.UpdateService.IsBashuUpdateAvailable
+                ? ViewModel.UpdateService.BashuReleaseNotes
+                : "";
+            return;
+        }
         ViewModel.NewVersionChangeLogDocument =
             ViewModel.SettingsService.Settings.LastUpdateStatus != UpdateStatus.UpToDate
                 ? ViewModel.UpdateService.DistributionInfo.ChangeLog
