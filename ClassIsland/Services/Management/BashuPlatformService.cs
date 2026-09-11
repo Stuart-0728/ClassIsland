@@ -426,82 +426,120 @@ public class BashuPlatformService : IHostedService
 
     private async Task PlayQueuedSegmentAsync(BashuPlatformConnection conn, JsonElement segment, long segId, CancellationToken token)
     {
+        var mergedIds = new List<long> { segId };
         try
         {
             if (Shutdown.IsCancellationRequested || Connection != conn) return;
-                    var author = Author(segment);
-                    var sessionId = segment.TryGetProperty("session_id", out var session) ? BashuPlatformConnection.GetInt64Flexible(session) : segId;
-                    if (RtcReceiver.Receiving(sessionId)) return;
-                    var mime = segment.TryGetProperty("mime_type", out var mimeEl) ? mimeEl.GetString() ?? "" : "";
-                    var emergency = segment.TryGetProperty("priority", out var priorityEl) && priorityEl.GetString() == "emergency";
+            var author = Author(segment);
+            var sessionId = segment.TryGetProperty("session_id", out var session) ? BashuPlatformConnection.GetInt64Flexible(session) : segId;
+            if (RtcReceiver.Receiving(sessionId)) return;
+            var mime = segment.TryGetProperty("mime_type", out var mimeEl) ? mimeEl.GetString() ?? "" : "";
+            var emergency = segment.TryGetProperty("priority", out var priorityEl) && priorityEl.GetString() == "emergency";
+            try
+            {
+                byte[]? bytes = null;
+                if (segment.TryGetProperty("audio_base64", out var base64El) &&
+                    base64El.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrEmpty(base64El.GetString()))
+                {
                     try
                     {
-                        byte[]? bytes = null;
-                        if (segment.TryGetProperty("audio_base64", out var base64El) &&
-                            base64El.ValueKind == JsonValueKind.String &&
-                            !string.IsNullOrEmpty(base64El.GetString()))
-                        {
-                            try
-                            {
-                                bytes = Convert.FromBase64String(base64El.GetString()!);
-                            }
-                            catch
-                            {
-                                bytes = null;
-                            }
-                        }
-                        if (bytes == null || bytes.Length == 0)
-                        {
-                            bytes = await conn.GetIntercomSegmentAudioAsync(segId, token);
-                        }
-                        if (bytes == null || bytes.Length == 0) return;
-                        if (DisplayedIntercomSession != sessionId || IntercomNotification == null ||
-                            IntercomNotification.CancellationToken.IsCancellationRequested)
-                        {
-                            TrackBoundedId(PresentedSessions, PresentedSessionsOrder, sessionId);
-                            DisplayedIntercomSession = sessionId;
-                            IntercomNotification?.Cancel();
-                            IntercomNotification = new NotificationRequest
-                            {
-                                MaskContent = NotificationContent.CreateTwoIconsMask($"{(emergency ? "紧急广播" : "实时对讲")} · {author}", rightIcon: "lucide(\ue17c)"),
-                                OverlayContent = NotificationContent.CreateSimpleTextContent($"{author} 正在讲话", overlay => overlay.Duration = TimeSpan.FromMinutes(20)),
-                                IsPriorityOverride = true,
-                                PriorityOverride = emergency ? 200 : 50,
-                                RequestNotificationSettings = { IsSettingsEnabled = true, IsSpeechEnabled = false, IsNotificationSoundEnabled = false, IsNotificationTopmostEnabled = true }
-                            };
-                            // 保留 5 秒醒目遮罩动画，音频在动画弹出的第 1 毫秒同步开始播放，无需等待动画结束
-                            IntercomNotification.MaskContent.Duration = TimeSpan.FromSeconds(5);
-                            NotificationHostService.ShowNotification(IntercomNotification, Guid.Empty, Guid.Empty, true, false);
-                        }
-                        // Audio must not race ahead of its island while another notification is speaking.
-                        while (IntercomNotification is { State: not NotificationState.Playing } &&
-                               !IntercomNotification.CancellationToken.IsCancellationRequested &&
-                               !IntercomNotification.CompletedToken.IsCancellationRequested)
-                            await Task.Delay(25, token);
-                        if (IntercomNotification?.CancellationToken.IsCancellationRequested == true ||
-                            IntercomNotification?.CompletedToken.IsCancellationRequested == true) return;
-                        var playbackNotification = IntercomNotification;
-                        if (playbackNotification == null || RtcReceiver.Receiving(sessionId)) return;
-                        await PlayIntercomAudioAsync(bytes, mime, playbackNotification, token);
-                        LastAudioAt = DateTime.UtcNow;
-                        TrackBoundedId(ProcessedIntercomSegmentIds, ProcessedIntercomSegmentOrder, segId);
-                        PendingIntercomAcks.Add(segId);
-                        // The poll loop retries acknowledgements without adding an HTTP round trip between audio clips.
+                        bytes = Convert.FromBase64String(base64El.GetString()!);
                     }
-                    catch (OperationCanceledException)
+                    catch
                     {
-                        // No success acknowledgement: the interrupted segment may be retried after the emergency.
-                        if (!Shutdown.IsCancellationRequested && Connection == conn && !RtcReceiver.Receiving(sessionId))
-                            InterruptedAudio = (conn, segment, segId);
+                        bytes = null;
                     }
-                    catch (Exception ex)
+                }
+                if (bytes == null || bytes.Length == 0)
+                {
+                    bytes = await conn.GetIntercomSegmentAudioAsync(segId, token);
+                }
+                if (bytes == null || bytes.Length == 0) return;
+                if (DisplayedIntercomSession != sessionId || IntercomNotification == null ||
+                    IntercomNotification.CancellationToken.IsCancellationRequested)
+                {
+                    TrackBoundedId(PresentedSessions, PresentedSessionsOrder, sessionId);
+                    DisplayedIntercomSession = sessionId;
+                    IntercomNotification?.Cancel();
+                    IntercomNotification = new NotificationRequest
                     {
-                        Status = "对讲播放失败，请检查音量、音频设备及网页是否已更新";
-                        Logger.LogWarning(ex, "对讲片段 {SegmentId} 未播放成功，不发送成功回执", segId);
+                        MaskContent = NotificationContent.CreateTwoIconsMask($"{(emergency ? "紧急广播" : "实时对讲")} · {author}", rightIcon: "lucide(\ue17c)"),
+                        OverlayContent = NotificationContent.CreateSimpleTextContent($"{author} 正在讲话", overlay => overlay.Duration = TimeSpan.FromMinutes(20)),
+                        IsPriorityOverride = true,
+                        PriorityOverride = emergency ? 200 : 50,
+                        RequestNotificationSettings = { IsSettingsEnabled = true, IsSpeechEnabled = false, IsNotificationSoundEnabled = false, IsNotificationTopmostEnabled = true }
+                    };
+                    IntercomNotification.MaskContent.Duration = TimeSpan.FromSeconds(5);
+                    NotificationHostService.ShowNotification(IntercomNotification, Guid.Empty, Guid.Empty, true, false);
+                }
 
+                while (IntercomNotification is { State: not NotificationState.Playing } &&
+                       !IntercomNotification.CancellationToken.IsCancellationRequested &&
+                       !IntercomNotification.CompletedToken.IsCancellationRequested)
+                    await Task.Delay(25, token);
+                if (IntercomNotification?.CancellationToken.IsCancellationRequested == true ||
+                    IntercomNotification?.CompletedToken.IsCancellationRequested == true) return;
+                var playbackNotification = IntercomNotification;
+                if (playbackNotification == null || RtcReceiver.Receiving(sessionId)) return;
+
+                var activeQueue = emergency ? EmergencyAudioQueue : NormalAudioQueue;
+                var wavParts = new List<byte[]> { bytes };
+
+                while (activeQueue.Count > 0)
+                {
+                    var peek = activeQueue.Peek();
+                    var peekSessionId = peek.Segment.TryGetProperty("session_id", out var peekSession)
+                        ? BashuPlatformConnection.GetInt64Flexible(peekSession)
+                        : peek.Id;
+                    if (peekSessionId != sessionId) break;
+
+                    var dequeued = activeQueue.Dequeue();
+                    byte[]? nextBytes = null;
+                    if (dequeued.Segment.TryGetProperty("audio_base64", out var nextBase64) &&
+                        nextBase64.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrEmpty(nextBase64.GetString()))
+                    {
+                        try { nextBytes = Convert.FromBase64String(nextBase64.GetString()!); } catch { }
                     }
+                    if (nextBytes == null || nextBytes.Length == 0)
+                    {
+                        nextBytes = await conn.GetIntercomSegmentAudioAsync(dequeued.Id, token);
+                    }
+                    if (nextBytes != null && nextBytes.Length > 0)
+                    {
+                        wavParts.Add(nextBytes);
+                        mergedIds.Add(dequeued.Id);
+                    }
+                }
+
+                var combinedBytes = BashuAudioCombiner.CombinePcmWav(wavParts);
+                await PlayIntercomAudioAsync(combinedBytes, mime, playbackNotification, token);
+                LastAudioAt = DateTime.UtcNow;
+                foreach (var id in mergedIds)
+                {
+                    TrackBoundedId(ProcessedIntercomSegmentIds, ProcessedIntercomSegmentOrder, id);
+                    PendingIntercomAcks.Add(id);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (!Shutdown.IsCancellationRequested && Connection == conn && !RtcReceiver.Receiving(sessionId))
+                    InterruptedAudio = (conn, segment, segId);
+            }
+            catch (Exception ex)
+            {
+                Status = "对讲播放失败，请检查音量、音频设备及网页是否已更新";
+                Logger.LogWarning(ex, "对讲片段 {SegmentId} 未播放成功，不发送成功回执", segId);
+            }
         }
-        finally { if (InterruptedAudio?.Id != segId) QueuedSegments.Remove(segId); }
+        finally
+        {
+            foreach (var id in mergedIds)
+            {
+                if (InterruptedAudio?.Id != id) QueuedSegments.Remove(id);
+            }
+        }
     }
 
     private static string Author(JsonElement item)

@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.2.6-bashu'
+        default: 'v2.2.7-bashu'
         type: string
   push:
     branches:
@@ -30,7 +30,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.6-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.7-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.6 -p:AssemblyVersion=2.2.6.0 -p:FileVersion=2.2.6.0 -p:ApplicationVersion=2.2.6 -p:ApplicationDisplayVersion=2.2.6 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.7 -p:AssemblyVersion=2.2.7.0 -p:FileVersion=2.2.7.0 -p:ApplicationVersion=2.2.7 -p:ApplicationDisplayVersion=2.2.7 -o ${{ github.workspace }}/out_publish
 
       - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
         shell: pwsh
@@ -104,9 +104,9 @@ jobs:
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.2.6.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.2.7.0") { throw "Unexpected application version: $version" }
           $fileVersion = (Get-Item "${{ github.workspace }}/out_publish/ClassIsland.dll").VersionInfo.FileVersion
-          if ($fileVersion -notlike "2.2.6.0*") { throw "Unexpected file version: $fileVersion" }
+          if ($fileVersion -notlike "2.2.7.0*") { throw "Unexpected file version: $fileVersion" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -119,7 +119,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.2.6
+            /DAppVersion=2.2.7
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -148,7 +148,7 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.6-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.7-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -187,6 +187,11 @@ jobs:
             ## ClassIsland 智慧教研版（Windows x64 与 ARM64 双架构发布）
 
             本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
+
+            ### 核心更新与修复 (v2.2.7)
+            - **彻底消除对讲音频“PPT式卡顿”与断音：** 重构客户端音频队列播放引擎，新增动态 PCM WAV 无缝拼接引擎。大屏在消费轮询切片时，自动扫描并合并同一对讲会话后续全部音频片段，拼接为单个标准线性 PCM WAV 音频流进行单次连续播放，彻底根除因频繁启停播放器导致的系统级静音间隙与杂音爆音。
+            - **端云双重防卡顿保护：** 配合智慧教研平台服务端微小音频帧智能聚合机制（~750ms-1000ms 规整块），消除网络微帧碎片，实现对讲语音即按即播、流畅无缝。
+            - **版本基线升级：** 程序集与安装包统一升级为 2.2.7 / v2.2.7-bashu。
 
             ### 核心更新与修复 (v2.2.6)
             - **全面支持微信小程序流式对讲：** 深度适配微信小程序全双工对讲通道，服务端实时推流落库，客户端轮询毫秒级感知，打通小程序移动端直达教室大屏的高效双向语音通道。

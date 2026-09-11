@@ -83,3 +83,39 @@ var httpCustomAlert = new ClassIsland.Core.Models.Weather.WeatherAlert
 };
 Check(httpCustomAlert.SafeIconSource == "https://example.com/custom/rain.png", "http custom icon is upgraded to https");
 Check(httpCustomAlert.AlertLucideGlyph == "\ue092", "rain lucide glyph is cloud-rain");
+
+// Audio combiner smoke tests
+byte[] CreateMockWav(int pcmLength, byte fillByte)
+{
+    var buf = new byte[44 + pcmLength];
+    buf[0] = (byte)'R'; buf[1] = (byte)'I'; buf[2] = (byte)'F'; buf[3] = (byte)'F';
+    System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(4, 4), 36 + pcmLength);
+    buf[8] = (byte)'W'; buf[9] = (byte)'A'; buf[10] = (byte)'V'; buf[11] = (byte)'E';
+    buf[12] = (byte)'f'; buf[13] = (byte)'m'; buf[14] = (byte)'t'; buf[15] = (byte)' ';
+    System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(16, 4), 16);
+    System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(buf.AsSpan(20, 2), 1);
+    System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(buf.AsSpan(22, 2), 1);
+    System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(24, 4), 16000);
+    System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(28, 4), 32000);
+    System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(buf.AsSpan(32, 2), 2);
+    System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(buf.AsSpan(34, 2), 16);
+    buf[36] = (byte)'d'; buf[37] = (byte)'a'; buf[38] = (byte)'t'; buf[39] = (byte)'a';
+    System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(40, 4), pcmLength);
+    Array.Fill(buf, fillByte, 44, pcmLength);
+    return buf;
+}
+
+Check(BashuAudioCombiner.CombinePcmWav(Array.Empty<byte[]>()).Length == 0, "empty wav list returns empty array");
+var sample1 = CreateMockWav(100, 0x11);
+Check(BashuAudioCombiner.CombinePcmWav(new[] { sample1 }) == sample1, "single wav returns identical reference");
+
+var sample2 = CreateMockWav(200, 0x22);
+var combined = BashuAudioCombiner.CombinePcmWav(new[] { sample1, sample2 });
+Check(combined.Length == 44 + 300, "combined wav has exact total length");
+var riffSize = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(combined.AsSpan(4, 4));
+var dataSize = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(combined.AsSpan(40, 4));
+Check(riffSize == 36 + 300, "combined wav RIFF chunk size matches total PCM plus 36");
+Check(dataSize == 300, "combined wav data chunk size matches sum of parts");
+Check(combined[44] == 0x11 && combined[143] == 0x11, "first segment PCM bytes preserved");
+Check(combined[144] == 0x22 && combined[343] == 0x22, "second segment PCM bytes appended seamlessly");
+
