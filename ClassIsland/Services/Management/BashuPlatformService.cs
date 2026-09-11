@@ -85,6 +85,9 @@ public class BashuPlatformService : IHostedService
     private (BashuPlatformConnection Connection, JsonElement Segment, long Id)? InterruptedAudio;
     private readonly HashSet<long> QueuedSegments = new();
     private readonly BashuRtcReceiver RtcReceiver;
+    private readonly BashuWsReceiver WsReceiver;
+
+    private bool IsLiveReceiving(long sessionId) => RtcReceiver.Receiving(sessionId) || WsReceiver.Receiving(sessionId);
 
     public BashuPlatformConnection? Connection => ManagementService.Connection as BashuPlatformConnection;
 
@@ -119,6 +122,21 @@ public class BashuPlatformService : IHostedService
                 IntercomNotification = null;
                 InterruptedAudio = null;
             }
+            return previouslyPresented;
+        };
+        WsReceiver = new BashuWsReceiver(audioService, notificationHostService, settingsService, logger);
+        WsReceiver.AudioStarted = sessionId =>
+        {
+            var previouslyPresented = !TrackBoundedId(PresentedSessions, PresentedSessionsOrder, sessionId);
+            if (DisplayedIntercomSession == sessionId)
+            {
+                CurrentAudioCancellation?.Cancel();
+                IntercomNotification?.Cancel();
+                IntercomNotification = null;
+                InterruptedAudio = null;
+            }
+            NormalAudioQueue.Clear();
+            EmergencyAudioQueue.Clear();
             return previouslyPresented;
         };
     }
@@ -163,6 +181,7 @@ public class BashuPlatformService : IHostedService
         PollTimer?.Stop();
         Shutdown.Cancel();
         RtcReceiver.Stop();
+        WsReceiver.Dispose();
         CurrentAudioCancellation?.Cancel();
         IntercomNotification?.Cancel();
         return Task.CompletedTask;
@@ -176,6 +195,7 @@ public class BashuPlatformService : IHostedService
         if (conn == null || string.IsNullOrWhiteSpace(conn.Settings.BashuDeviceToken))
         {
             RtcReceiver.Stop();
+            WsReceiver.Dispose();
             return;
         }
 
@@ -186,6 +206,7 @@ public class BashuPlatformService : IHostedService
             {
                 EnsureAutoStartEnabled();
                 RtcReceiver.Stop();
+                WsReceiver.Dispose();
                 CurrentAudioCancellation?.Cancel();
                 NormalAudioQueue.Clear(); EmergencyAudioQueue.Clear();
                 InterruptedAudio = null;
@@ -207,6 +228,7 @@ public class BashuPlatformService : IHostedService
                 IntercomNotification.Cancel(); IntercomNotification = null;
             }
             await RtcReceiver.PollAsync(conn);
+            WsReceiver.EnsureConnected(conn);
             var json = await conn.PollAsync(Shutdown.Token);
             if (string.IsNullOrWhiteSpace(json))
             {
@@ -220,10 +242,15 @@ public class BashuPlatformService : IHostedService
                 return;
             }
 
-            // 成功通信，立即切回 1 秒快速响应
-            if (PollTimer != null && PollTimer.Interval != TimeSpan.FromSeconds(1))
+            // 成功通信，动态平滑防饥饿自适应轮询：
+            // 当存在待播/在播对讲音频时，切换为 250ms 高频极速轮询，从根本上杜绝 1-2s 音频中间由于轮询等待引起的静音间隙与延迟累积；
+            // 待对讲结束后恢复 1 秒节能轮询
+            var hasActiveAudio = EmergencyAudioQueue.Count > 0 || NormalAudioQueue.Count > 0 ||
+                                 IsAudioQueueRunning || (DateTime.UtcNow - LastAudioAt < TimeSpan.FromSeconds(3));
+            var desiredInterval = hasActiveAudio ? TimeSpan.FromMilliseconds(250) : TimeSpan.FromSeconds(1);
+            if (PollTimer != null && PollTimer.Interval != desiredInterval)
             {
-                PollTimer.Interval = TimeSpan.FromSeconds(1);
+                PollTimer.Interval = desiredInterval;
             }
 
             using var doc = JsonDocument.Parse(json);
@@ -363,7 +390,7 @@ public class BashuPlatformService : IHostedService
             {
                 foreach (var segment in intercomEl.EnumerateArray())
                 {
-                    if (segment.TryGetProperty("session_id", out var rtcSession) && RtcReceiver.Receiving(BashuPlatformConnection.GetInt64Flexible(rtcSession))) continue;
+                    if (segment.TryGetProperty("session_id", out var rtcSession) && IsLiveReceiving(BashuPlatformConnection.GetInt64Flexible(rtcSession))) continue;
                     var segId = segment.TryGetProperty("id", out var sidEl) ? BashuPlatformConnection.GetInt64Flexible(sidEl) : 0;
                     if (segId <= 0 || ProcessedIntercomSegmentIds.Contains(segId))
                     {
@@ -374,6 +401,13 @@ public class BashuPlatformService : IHostedService
                     var queuedSegment = segment.Clone();
                     var emergency = segment.TryGetProperty("priority", out var priorityEl) && priorityEl.GetString() == "emergency";
                     (emergency ? EmergencyAudioQueue : NormalAudioQueue).Enqueue((conn, queuedSegment, segId));
+                }
+                if (EmergencyAudioQueue.Count > 0 || NormalAudioQueue.Count > 0)
+                {
+                    if (PollTimer != null && PollTimer.Interval != TimeSpan.FromMilliseconds(250))
+                    {
+                        PollTimer.Interval = TimeSpan.FromMilliseconds(250);
+                    }
                 }
                 if (EmergencyAudioQueue.Count > 0 && !IsEmergencyAudioPlaying)
                     CurrentAudioCancellation?.Cancel();
@@ -432,7 +466,7 @@ public class BashuPlatformService : IHostedService
             if (Shutdown.IsCancellationRequested || Connection != conn) return;
             var author = Author(segment);
             var sessionId = segment.TryGetProperty("session_id", out var session) ? BashuPlatformConnection.GetInt64Flexible(session) : segId;
-            if (RtcReceiver.Receiving(sessionId)) return;
+            if (IsLiveReceiving(sessionId)) return;
             var mime = segment.TryGetProperty("mime_type", out var mimeEl) ? mimeEl.GetString() ?? "" : "";
             var emergency = segment.TryGetProperty("priority", out var priorityEl) && priorityEl.GetString() == "emergency";
             try
@@ -481,7 +515,7 @@ public class BashuPlatformService : IHostedService
                 if (IntercomNotification?.CancellationToken.IsCancellationRequested == true ||
                     IntercomNotification?.CompletedToken.IsCancellationRequested == true) return;
                 var playbackNotification = IntercomNotification;
-                if (playbackNotification == null || RtcReceiver.Receiving(sessionId)) return;
+                if (playbackNotification == null || IsLiveReceiving(sessionId)) return;
 
                 var activeQueue = emergency ? EmergencyAudioQueue : NormalAudioQueue;
                 var wavParts = new List<byte[]> { bytes };
@@ -524,7 +558,7 @@ public class BashuPlatformService : IHostedService
             }
             catch (OperationCanceledException)
             {
-                if (!Shutdown.IsCancellationRequested && Connection == conn && !RtcReceiver.Receiving(sessionId))
+                if (!Shutdown.IsCancellationRequested && Connection == conn && !IsLiveReceiving(sessionId))
                     InterruptedAudio = (conn, segment, segId);
             }
             catch (Exception ex)

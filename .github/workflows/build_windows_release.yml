@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.2.7-bashu'
+        default: 'v2.2.8-bashu'
         type: string
   push:
     branches:
@@ -30,7 +30,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.7-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.8-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -187,6 +187,12 @@ jobs:
             ## ClassIsland 智慧教研版（Windows x64 与 ARM64 双架构发布）
 
             本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
+
+            ### 核心更新与修复 (v2.2.8)
+            - **原生全双工 WebSocket 对讲引擎与零卡顿流式播放：** 客户端深度内置专属 ClientWebSocket 全双工对讲接收通道（BashuWsReceiver）与无缝重采样音频环形缓冲区（BashuWsAudioBuffer）。直接监听平台实时语音推流，实现毫秒级即按即达直通播放，从根源上彻底解决第 1-2 秒因固定 HTTP 轮询间隔产生的 200~300ms 声卡断流空白与卡顿。
+            - **低延迟防累积削峰锁死机制：** 音频缓冲区设立 80ms 抗抖动起播门控，并将未播放语音最大积压上限严格锁死在 500ms 内。长时间连续说话时自动平滑跳过超量积压帧，彻底根治对讲延迟随时间累积的问题。
+            - **HTTP 轮询自适应防饥饿动态加速（双通道容灾保障）：** 在 WebSocket 建立中或弱网回退到兼容轮询时，检测到对讲活动后轮询周期自适应由 1000ms 动态极速加速至 250ms，配合服务端的 500ms 切片平滑对齐，消除传统轮询饥饿缝隙。
+            - **版本基线升级：** 程序集与安装包统一升级为 2.2.8 / v2.2.8-bashu。
 
             ### 核心更新与修复 (v2.2.7)
             - **彻底消除对讲音频“PPT式卡顿”与断音：** 重构客户端音频队列播放引擎，新增动态 PCM WAV 无缝拼接引擎。大屏在消费轮询切片时，自动扫描并合并同一对讲会话后续全部音频片段，拼接为单个标准线性 PCM WAV 音频流进行单次连续播放，彻底根除因频繁启停播放器导致的系统级静音间隙与杂音爆音。

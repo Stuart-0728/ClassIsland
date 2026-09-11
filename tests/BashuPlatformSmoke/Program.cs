@@ -119,3 +119,29 @@ Check(dataSize == 300, "combined wav data chunk size matches sum of parts");
 Check(combined[44] == 0x11 && combined[143] == 0x11, "first segment PCM bytes preserved");
 Check(combined[144] == 0x22 && combined[343] == 0x22, "second segment PCM bytes appended seamlessly");
 
+// WebSocket audio streaming buffer tests
+using var wsBuffer = new BashuWsAudioBuffer();
+var pcm16k = new byte[200]; // 100 samples at 16kHz
+for (var i = 0; i < 100; i++) System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(pcm16k.AsSpan(i * 2, 2), 16384); // 0.5f
+
+wsBuffer.PushPcm16Mono16k(pcm16k);
+Check(wsBuffer.BufferedSampleCount == 600, "16kHz to 48kHz stereo upsampling expands 1 sample to 6 floats");
+
+var readDrain = new float[1024];
+wsBuffer.ReadBytes(readDrain);
+Check(readDrain.All(x => x == 0), "cushion ensures initial jitter protection before priming");
+
+// Push enough samples to exceed 80ms cushion (7680 stereo samples)
+for (var i = 0; i < 20; i++) wsBuffer.PushPcm16Mono16k(pcm16k);
+Check(wsBuffer.BufferedSampleCount > 7680, "accumulated audio exceeds 80ms cushion");
+
+wsBuffer.ReadBytes(readDrain);
+Check(readDrain.Take(600).All(x => Math.Abs(x - 0.5f) < 0.001f), "primed stream outputs continuous 48kHz samples");
+
+// Push excessive audio (more than 500ms backlog)
+var hugePcm = new byte[20000]; // 10,000 samples = 60,000 floats
+for (var i = 0; i < 10000; i++) System.Buffers.Binary.BinaryPrimitives.WriteInt16LittleEndian(hugePcm.AsSpan(i * 2, 2), 8192);
+wsBuffer.PushPcm16Mono16k(hugePcm);
+Check(wsBuffer.BufferedSampleCount <= 48000, "WebSocket audio backlog is capped at 500ms to eliminate delay accumulation");
+
+

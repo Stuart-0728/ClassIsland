@@ -6,5 +6,6 @@
     <Compile Include="../../ClassIsland/Services/Management/BashuScheduleMapper.cs" Link="BashuScheduleMapper.cs" />
     <Compile Include="../../ClassIsland/Services/Management/BashuNotificationTiming.cs" Link="BashuNotificationTiming.cs" />
     <Compile Include="../../ClassIsland/Services/Management/BashuAudioCombiner.cs" Link="BashuAudioCombiner.cs" />
+    <Compile Include="../../ClassIsland/Services/Management/BashuWsAudioBuffer.cs" Link="BashuWsAudioBuffer.cs" />
   </ItemGroup>
 </Project>
