@@ -31,8 +31,37 @@ public sealed class BashuWsReceiver(
     private Task? ConnectionLoopTask;
     private BashuPlatformConnection? CurrentConnection;
     private WsSession? ActiveSession;
+    private readonly HashSet<long> ReceivedSessionIds = new();
+    private readonly List<long> ReceivedSessionIdsOrder = new();
+    private readonly object SessionIdGate = new();
 
     public Func<long, bool>? AudioStarted { get; set; }
+
+    public bool HasReceivedSession(long sessionId)
+    {
+        lock (SessionIdGate)
+        {
+            return ReceivedSessionIds.Contains(sessionId);
+        }
+    }
+
+    public void RecordReceivedSession(long sessionId)
+    {
+        if (sessionId <= 0) return;
+        lock (SessionIdGate)
+        {
+            if (ReceivedSessionIds.Add(sessionId))
+            {
+                ReceivedSessionIdsOrder.Add(sessionId);
+                while (ReceivedSessionIdsOrder.Count > 100)
+                {
+                    var oldest = ReceivedSessionIdsOrder[0];
+                    ReceivedSessionIdsOrder.RemoveAt(0);
+                    ReceivedSessionIds.Remove(oldest);
+                }
+            }
+        }
+    }
 
     public bool Receiving(long sessionId)
     {
@@ -112,6 +141,21 @@ public sealed class BashuWsReceiver(
                         catch { }
                     }
                 }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(20));
+
+                using var silenceWatchdog = new Timer(_ =>
+                {
+                    WsSession? sessionToCheck;
+                    lock (SessionGate)
+                    {
+                        sessionToCheck = ActiveSession;
+                    }
+                    if (sessionToCheck != null && sessionToCheck.IsActive &&
+                        DateTime.UtcNow - sessionToCheck.LastAudioReceivedAt > TimeSpan.FromSeconds(3.0))
+                    {
+                        logger.LogInformation("WebSocket 对讲会话 {SessionId} 持续 3 秒无新音频帧，自动平滑结课并关闭提醒", sessionToCheck.Id);
+                        EndSession(sessionToCheck.Id, immediate: false);
+                    }
+                }, null, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(500));
 
                 while (ws.State == WebSocketState.Open && !token.IsCancellationRequested)
                 {
@@ -205,6 +249,7 @@ public sealed class BashuWsReceiver(
     {
         if (data.Length <= 8) return;
         var sessionId = (long)BinaryPrimitives.ReadUInt32BigEndian(data.Slice(0, 4));
+        RecordReceivedSession(sessionId);
         var rawAudio = data.Slice(8);
 
         ReadOnlySpan<byte> pcmPayload;
@@ -235,11 +280,16 @@ public sealed class BashuWsReceiver(
             }
         }
 
-        session?.Buffer.PushPcm16Mono16k(pcmPayload);
+        if (session != null)
+        {
+            session.LastAudioReceivedAt = DateTime.UtcNow;
+            session.Buffer.PushPcm16Mono16k(pcmPayload);
+        }
     }
 
     private async Task StartSessionAsync(long sessionId, string author, bool emergency, BashuPlatformConnection conn)
     {
+        RecordReceivedSession(sessionId);
         WsSession newSession;
         lock (SessionGate)
         {
@@ -307,11 +357,13 @@ public sealed class BashuWsReceiver(
         WsSession? session;
         lock (SessionGate)
         {
-            if (ActiveSession == null || ActiveSession.Id != sessionId) return;
+            if (ActiveSession == null) return;
+            if (sessionId > 0 && ActiveSession.Id != sessionId) return;
             session = ActiveSession;
         }
 
         if (session == null) return;
+        RecordReceivedSession(session.Id);
 
         if (immediate)
         {
@@ -340,8 +392,12 @@ public sealed class BashuWsReceiver(
     {
         lock (SessionGate)
         {
-            ActiveSession?.Dispose();
-            ActiveSession = null;
+            if (ActiveSession != null)
+            {
+                RecordReceivedSession(ActiveSession.Id);
+                ActiveSession.Dispose();
+                ActiveSession = null;
+            }
         }
     }
 
@@ -363,13 +419,26 @@ public sealed class BashuWsReceiver(
         public CancellationTokenSource Stopped { get; } = new();
         public Task? PlaybackTask { get; set; }
         public volatile bool IsActive = true;
+        public DateTime LastAudioReceivedAt { get; set; } = DateTime.UtcNow;
 
         public void Dispose()
         {
             if (!IsActive) return;
             IsActive = false;
-            Stopped.Cancel();
-            Dispatcher.UIThread.Post(() => Notification?.Cancel());
+            try
+            {
+                Stopped.Cancel();
+            }
+            catch { }
+            var notif = Notification;
+            Notification = null;
+            if (notif != null)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try { notif.Cancel(); } catch { }
+                });
+            }
             Buffer.Dispose();
         }
     }

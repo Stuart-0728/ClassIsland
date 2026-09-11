@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.2.8-bashu'
+        default: 'v2.2.9-bashu'
         type: string
   push:
     branches:
@@ -30,7 +30,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.8-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.9-bashu' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.8 -p:AssemblyVersion=2.2.8.0 -p:FileVersion=2.2.8.0 -p:ApplicationVersion=2.2.8 -p:ApplicationDisplayVersion=2.2.8 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.9 -p:AssemblyVersion=2.2.9.0 -p:FileVersion=2.2.9.0 -p:ApplicationVersion=2.2.9 -p:ApplicationDisplayVersion=2.2.9 -o ${{ github.workspace }}/out_publish
 
       - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
         shell: pwsh
@@ -104,9 +104,9 @@ jobs:
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.2.8.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.2.9.0") { throw "Unexpected application version: $version" }
           $fileVersion = (Get-Item "${{ github.workspace }}/out_publish/ClassIsland.dll").VersionInfo.FileVersion
-          if ($fileVersion -notlike "2.2.8.0*") { throw "Unexpected file version: $fileVersion" }
+          if ($fileVersion -notlike "2.2.9.0*") { throw "Unexpected file version: $fileVersion" }
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -119,7 +119,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.2.8
+            /DAppVersion=2.2.9
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -148,7 +148,7 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.8-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.9-bashu' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -187,6 +187,11 @@ jobs:
             ## ClassIsland 智慧教研版（Windows x64 与 ARM64 双架构发布）
 
             本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
+
+            ### 核心更新与修复 (v2.2.9)
+            - **彻底根除对讲结束后完整录音重播问题（端云协同双重防重播机制）：** 服务端在下发 HTTP 轮询切片时新增 WebSocket 下发水印过滤（wsDeviceCutoffs），与 WebRTC 水印无缝合并在数据库 SQL 层面精准排除大屏已收听的会话数据；同时客户端新增已收听会话历史登记（HasReceivedSession）与即时回执拦截，即使弱网或乱序重试也绝不重复播放。
+            - **彻底修复对讲结束后讲话横条与倒计时进度条悬挂不消失问题：** 在客户端音频播放队列全部消费完毕后，即时注销灵动岛通知卡片（IntercomNotification.Cancel()）；同时在 WebSocket 通道中引入 3.0 秒静音超时看门狗，避免弱网下结束指令丢包导致大屏界面一直显示“正在讲话”及 20 分钟倒计时进度条。
+            - **版本基线升级：** 程序集与安装包统一升级为 2.2.9 / v2.2.9-bashu。
 
             ### 核心更新与修复 (v2.2.8)
             - **原生全双工 WebSocket 对讲引擎与零卡顿流式播放：** 客户端深度内置专属 ClientWebSocket 全双工对讲接收通道（BashuWsReceiver）与无缝重采样音频环形缓冲区（BashuWsAudioBuffer）。直接监听平台实时语音推流，实现毫秒级即按即达直通播放，从根源上彻底解决第 1-2 秒因固定 HTTP 轮询间隔产生的 200~300ms 声卡断流空白与卡顿。
