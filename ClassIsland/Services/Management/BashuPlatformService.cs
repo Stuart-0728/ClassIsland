@@ -436,7 +436,24 @@ public class BashuPlatformService : IHostedService
                     var emergency = segment.TryGetProperty("priority", out var priorityEl) && priorityEl.GetString() == "emergency";
                     try
                     {
-                        var bytes = await conn.GetIntercomSegmentAudioAsync(segId, token);
+                        byte[]? bytes = null;
+                        if (segment.TryGetProperty("audio_base64", out var base64El) &&
+                            base64El.ValueKind == JsonValueKind.String &&
+                            !string.IsNullOrEmpty(base64El.GetString()))
+                        {
+                            try
+                            {
+                                bytes = Convert.FromBase64String(base64El.GetString()!);
+                            }
+                            catch
+                            {
+                                bytes = null;
+                            }
+                        }
+                        if (bytes == null || bytes.Length == 0)
+                        {
+                            bytes = await conn.GetIntercomSegmentAudioAsync(segId, token);
+                        }
                         if (bytes == null || bytes.Length == 0) return;
                         if (DisplayedIntercomSession != sessionId || IntercomNotification == null ||
                             IntercomNotification.CancellationToken.IsCancellationRequested)
