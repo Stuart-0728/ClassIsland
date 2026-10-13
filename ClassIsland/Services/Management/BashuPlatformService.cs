@@ -43,6 +43,37 @@ public class BashuPlatformService : IHostedService
     private INotificationHostService NotificationHostService { get; }
     private IManagementService ManagementService { get; }
 
+    private DispatcherTimer? HomeworkTimer;
+    private bool HomeworkPolling;
+    private string? HomeworkBinding;
+    private async Task PollHomeworkAsync()
+    {
+        var connection = Connection;
+        var binding = connection?.Settings.BashuDeviceToken;
+        if (HomeworkBinding != binding)
+        {
+            HomeworkBinding = binding;
+            await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.ResetLive);
+        }
+        if (HomeworkPolling || Shutdown.IsCancellationRequested || connection == null || string.IsNullOrWhiteSpace(binding)) return;
+        HomeworkPolling = true;
+        try
+        {
+            var json = await connection.GetHomeworkAsync(Shutdown.Token);
+            var snapshot = ClassIsland.ViewModels.BashuHomeworkSnapshot.Parse(json);
+            if (Shutdown.IsCancellationRequested || Connection != connection || connection.Settings.BashuDeviceToken != binding) return;
+            await Dispatcher.UIThread.InvokeAsync(() => BashuHomeworkPreviewWindow.UpdateLive(snapshot));
+        }
+        catch (Exception ex)
+        {
+            // Clear stale student names on disconnect/revocation instead of displaying old clearance results.
+            if (Connection == connection && connection.Settings.BashuDeviceToken == binding)
+                await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.ResetLive);
+            Logger.LogDebug(ex, "作业悬浮窗同步暂不可用");
+        }
+        finally { HomeworkPolling = false; }
+    }
+
     private DispatcherTimer? PollTimer { get; set; }
     private string LastScheduleSignature { get; set; } = "";
     private Profile? LastSyncedProfile;
@@ -151,6 +182,10 @@ public class BashuPlatformService : IHostedService
             Interval = TimeSpan.FromSeconds(1)
         };
         PollTimer.Tick += async (sender, args) => await PollOnceAsync();
+        HomeworkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        HomeworkTimer.Tick += async (_, _) => await PollHomeworkAsync();
+        HomeworkTimer.Start();
+        _ = PollHomeworkAsync();
         PollTimer.Start();
         _ = PollOnceAsync();
         return Task.CompletedTask;
@@ -180,6 +215,8 @@ public class BashuPlatformService : IHostedService
     {
         Logger.LogInformation("停止两江巴蜀智慧教研平台同步托管服务");
         PollTimer?.Stop();
+        HomeworkTimer?.Stop();
+        BashuHomeworkPreviewWindow.ResetLive();
         Shutdown.Cancel();
         RtcReceiver.Stop();
         WsReceiver.Dispose();

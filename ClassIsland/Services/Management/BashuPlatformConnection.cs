@@ -153,6 +153,15 @@ public class BashuPlatformConnection : IManagementServerConnection
     /// <summary>
     /// 轮询课表、天气与通知广播
     /// </summary>
+    public async Task<string> GetHomeworkAsync(CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/display-client/homework");
+        request.Headers.Add("X-Homework-Client-Version", "2.2.11-preview.1");
+        using var response = await HttpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
     public async Task<string?> PollAsync(CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(Settings.BashuDeviceToken))

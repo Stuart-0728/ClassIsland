@@ -3,7 +3,7 @@
 [Setup]
 AppId={{4C387517-7940-4B38-9A79-6101ABE530DA}}
 AppName={#AppName}
-AppVersion=2.2.10
+AppVersion=2.2.11
 DefaultDirName={localappdata}\BashuHomeworkPreview
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
@@ -26,7 +26,7 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: "chinesesimplified"; MessagesFile: "languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--bashu-homework-demo"; WorkingDir: "{app}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--bashu-homework-demo"; WorkingDir: "{app}"
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 [Run]
-Filename: "{app}\{#AppExeName}"; Parameters: "--bashu-homework-demo"; WorkingDir: "{app}"; Description: "打开作业悬浮窗演示"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Description: "打开平台作业同步测试版"; Flags: nowait postinstall skipifsilent

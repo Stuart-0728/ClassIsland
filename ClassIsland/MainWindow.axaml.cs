@@ -1110,6 +1110,8 @@ public partial class MainWindow : Window, ITopmostEffectPlayer
         App.GetService<SettingsWindowNew>().Open();
     }
 
+    private void MenuItemLiveHomework_OnClick(object? sender, EventArgs e) => ClassIsland.Views.BashuHomeworkPreviewWindow.OpenLive();
+
     private void MenuItemHomeworkPreview_OnClick(object? sender, EventArgs e)
     {
         ClassIsland.Views.BashuHomeworkPreviewWindow.ShowPreview();

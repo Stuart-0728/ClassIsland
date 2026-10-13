@@ -107,6 +107,7 @@
             <NativeMenuItemSeparator/>
             <NativeMenuItem Header="编辑主界面…" Click="NativeMenuItemEnterEditMode_OnClick" 
                             ci:NativeMenuItemAssist.IconSource="{ci:FluentIconSource &#xE7C9;}"/>
+            <NativeMenuItem Header="班级作业（平台同步）…" Click="MenuItemLiveHomework_OnClick"/>
             <NativeMenuItem Header="作业悬浮窗（演示测试版）…" Click="MenuItemHomeworkPreview_OnClick"/>
             <NativeMenuItem Header="绑定班级大屏 (两江巴蜀平台)…" Click="MenuItemBindBashu_OnClick" 
                             ci:NativeMenuItemAssist.IconSource="{ci:FluentIconSource &#xE7E7;}"/>

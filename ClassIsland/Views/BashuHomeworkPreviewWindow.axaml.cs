@@ -10,6 +10,32 @@ namespace ClassIsland.Views;
 public partial class BashuHomeworkPreviewWindow : Window
 {
     private static BashuHomeworkPreviewWindow? _instance;
+    private static BashuHomeworkPreviewWindow? _liveInstance;
+    private static BashuHomeworkSnapshot? _latest;
+    private static string? _closedRevision;
+    public static void UpdateLive(BashuHomeworkSnapshot snapshot)
+    {
+        _latest = snapshot;
+        if (_liveInstance == null && snapshot.Items.Count > 0 && _closedRevision != snapshot.Revision)
+            OpenLive();
+        _liveInstance?.ViewModel.ApplySnapshot(snapshot);
+    }
+    public static void OpenLive()
+    {
+        if (_latest == null) return;
+        if (_liveInstance == null)
+        {
+            _liveInstance = new BashuHomeworkPreviewWindow { Title = "巴蜀班级作业 · 平台同步" };
+            _liveInstance.ViewModel.ApplySnapshot(_latest);
+            _liveInstance.Closed += (_, _) => { _closedRevision = _latest?.Revision; _liveInstance = null; };
+            _liveInstance.Show();
+        }
+        else _liveInstance.Activate();
+    }
+    public static void ResetLive()
+    {
+        _liveInstance?.Close(); _liveInstance = null; _latest = null; _closedRevision = null;
+    }
     private double _expandedHeight = 720;
     public BashuHomeworkPreviewViewModel ViewModel { get; } = new();
     public BashuHomeworkPreviewWindow()

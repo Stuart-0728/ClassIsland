@@ -18,7 +18,7 @@
           <StackPanel Spacing="6">
             <TextBlock Text="班级作业" FontSize="21" FontWeight="Bold"/>
             <TextBlock Text="{Binding Summary}" FontSize="13" Foreground="#007E73" TextWrapping="Wrap"/>
-            <TextBlock Text="演示测试版 · 模拟班级 · 不连接真实数据" FontSize="11" Foreground="#687D77" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="#687D77" TextWrapping="Wrap"/>
           </StackPanel>
           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
             <Button Content="{Binding FoldLabel}" Click="Fold_OnClick" AutomationProperties.Name="收起或展开作业悬浮窗"/>
@@ -57,12 +57,15 @@
       </ScrollViewer>
       <Border Grid.Row="2" IsVisible="{Binding Expanded}" Background="#EAF1EE" Padding="16,12">
         <StackPanel Spacing="10">
+          <TextBlock IsVisible="{Binding IsLive}" Text="{Binding SyncHint}" FontSize="12" TextWrapping="Wrap"/>
+          <StackPanel IsVisible="{Binding IsDemo}" Spacing="10">
           <TextBlock Text="演示控制 · 不会修改平台数据" FontSize="12" Foreground="#647C79"/>
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
             <ComboBox ItemsSource="{Binding Stages}" SelectedIndex="{Binding Stage}" HorizontalAlignment="Stretch" FontSize="14"/>
             <Button Grid.Column="1" Classes="primary" Content="下一步" Click="Next_OnClick"/>
           </Grid>
           <TextBlock Text="{Binding Hint}" FontSize="12" Foreground="#647C79" TextWrapping="Wrap"/>
+          </StackPanel>
         </StackPanel>
       </Border>
     </Grid>
