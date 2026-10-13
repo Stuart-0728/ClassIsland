@@ -84,12 +84,18 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
         with:
           path: installer/homework-preview.iss
-          options: /DArch=${{ matrix.arch }} /DSourceDir=${{ github.workspace }}\out_preview /DWorkspaceDir=${{ github.workspace }} /O${{ github.workspace }}\out_packages /FBashu-Homework-Preview-2.2.10-Windows-${{ matrix.arch }}-Setup
+          options: |
+            /DArch=${{ matrix.arch }}
+            /DSourceDir=${{ github.workspace }}\out_preview
+            /DWorkspaceDir=${{ github.workspace }}
+            /O${{ github.workspace }}\out_packages
+            /FBashu-Homework-Preview-2.2.10-Windows-${{ matrix.arch }}-Setup
       - name: Checksum packages
         shell: pwsh
         run: |
           Get-ChildItem out_packages/* | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content out_packages/SHA256SUMS-${{ matrix.arch }}.txt
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Bashu-Homework-Preview-Windows-${{ matrix.arch }}
           path: out_packages/*
