@@ -63,6 +63,8 @@ jobs:
             $offset = [BitConverter]::ToInt32($bytes, 0x3c)
             if ([BitConverter]::ToUInt16($bytes, $offset + 4) -ne $expected) { throw "Wrong architecture: $name" }
           }
+          $version = [Reflection.AssemblyName]::GetAssemblyName("$pwd/out_preview/ClassIsland.dll").Version.ToString()
+          if ($version -ne '2.2.10.0') { throw "Unexpected application version: $version" }
           if ('${{ matrix.arch }}' -eq 'x64') {
             $p = Start-Process "$pwd/out_preview/ClassIsland.Desktop.exe" -ArgumentList '--bashu-homework-demo' -PassThru
             Start-Sleep -Seconds 12
