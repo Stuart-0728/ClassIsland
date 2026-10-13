@@ -216,7 +216,7 @@ public class BashuPlatformService : IHostedService
         Logger.LogInformation("停止两江巴蜀智慧教研平台同步托管服务");
         PollTimer?.Stop();
         HomeworkTimer?.Stop();
-        BashuHomeworkPreviewWindow.ResetLive();
+        Dispatcher.UIThread.Post(BashuHomeworkPreviewWindow.ResetLive);
         Shutdown.Cancel();
         RtcReceiver.Stop();
         WsReceiver.Dispose();

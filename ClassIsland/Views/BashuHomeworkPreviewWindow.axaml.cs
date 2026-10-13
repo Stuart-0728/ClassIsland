@@ -15,10 +15,15 @@ public partial class BashuHomeworkPreviewWindow : Window
     private static string? _closedRevision;
     public static void UpdateLive(BashuHomeworkSnapshot snapshot)
     {
+        var changed = _latest?.Revision != snapshot.Revision;
         _latest = snapshot;
         if (_liveInstance == null && snapshot.Items.Count > 0 && _closedRevision != snapshot.Revision)
+        {
             OpenLive();
-        _liveInstance?.ViewModel.ApplySnapshot(snapshot);
+            return;
+        }
+        // Stable snapshots must not rebuild the list and reset the teacher's scroll position.
+        if (changed) _liveInstance?.ViewModel.ApplySnapshot(snapshot);
     }
     public static void OpenLive()
     {
