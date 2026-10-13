@@ -1,0 +1,95 @@
+name: Bashu Homework Preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/bashu-homework-preview]
+permissions:
+  contents: read
+jobs:
+  preview:
+    name: Windows ${{ matrix.arch }} preview
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '^1.26.0'
+          cache-dependency-path: tools/bashu-rtc/go.sum
+      - name: Run regression checks
+        shell: pwsh
+        run: |
+          dotnet run --project tests/BashuHomeworkPreviewSmoke/BashuHomeworkPreviewSmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/BashuPlatformSmoke/BashuPlatformSmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile full desktop application
+        shell: pwsh
+        run: |
+          ./tools/release-gen/generate-secrets.ps1
+          dotnet build ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Debug
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish self contained Windows preview
+        shell: pwsh
+        run: |
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.10 -p:AssemblyVersion=2.2.10.0 -p:FileVersion=2.2.10.0 -p:ApplicationVersion=2.2.10 -p:ApplicationDisplayVersion=2.2.10-preview.1 -o out_preview
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:GOOS = 'windows'
+          $env:GOARCH = if ('${{ matrix.arch }}' -eq 'x64') { 'amd64' } else { 'arm64' }
+          $env:CGO_ENABLED = '0'
+          Push-Location tools/bashu-rtc
+          go build -ldflags '-s -w' -o ../../out_preview/BashuRtc.exe .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          Copy-Item LICENSE.txt out_preview/LICENSE.txt
+          Copy-Item doc/BashuHomeworkPreview.md out_preview/README-作业悬浮窗测试版.md
+          Set-Content -Encoding ascii -Path out_preview/Start-Homework-Preview.cmd -Value '@echo off', 'cd /d "%~dp0"', 'start "" "ClassIsland.Desktop.exe" --bashu-homework-demo'
+      - name: Verify native architecture and Windows startup
+        shell: pwsh
+        run: |
+          $expected = if ('${{ matrix.arch }}' -eq 'x64') { 0x8664 } else { 0xAA64 }
+          foreach ($name in @('ClassIsland.Desktop.exe', 'coreclr.dll', 'BashuRtc.exe')) {
+            $bytes = [IO.File]::ReadAllBytes("$pwd/out_preview/$name")
+            $offset = [BitConverter]::ToInt32($bytes, 0x3c)
+            if ([BitConverter]::ToUInt16($bytes, $offset + 4) -ne $expected) { throw "Wrong architecture: $name" }
+          }
+          if ('${{ matrix.arch }}' -eq 'x64') {
+            $p = Start-Process "$pwd/out_preview/ClassIsland.Desktop.exe" -ArgumentList '--bashu-homework-demo' -PassThru
+            Start-Sleep -Seconds 12
+            if ($p.HasExited) { throw "Preview exited unexpectedly: $($p.ExitCode)" }
+            $p.Refresh()
+            if ($p.MainWindowHandle -eq 0) { throw 'Preview did not create a native window' }
+            $p.CloseMainWindow() | Out-Null
+            if (-not $p.WaitForExit(10000)) { $p.Kill(); throw 'Preview did not close cleanly' }
+            if ($p.ExitCode -ne 0) { throw "Preview failed on close: $($p.ExitCode)" }
+          }
+      - name: Package portable preview
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out_packages
+          Compress-Archive -Path out_preview/* -DestinationPath out_packages/Bashu-Homework-Preview-2.2.10-Windows-${{ matrix.arch }}-Portable.zip
+      - name: Package isolated installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
+        with:
+          path: installer/homework-preview.iss
+          options: /DArch=${{ matrix.arch }} /DSourceDir=${{ github.workspace }}\out_preview /DWorkspaceDir=${{ github.workspace }} /O${{ github.workspace }}\out_packages /FBashu-Homework-Preview-2.2.10-Windows-${{ matrix.arch }}-Setup
+      - name: Checksum packages
+        shell: pwsh
+        run: |
+          Get-ChildItem out_packages/* | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content out_packages/SHA256SUMS-${{ matrix.arch }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bashu-Homework-Preview-Windows-${{ matrix.arch }}
+          path: out_packages/*
+          if-no-files-found: error
+          retention-days: 30

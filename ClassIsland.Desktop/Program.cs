@@ -1,4 +1,4 @@
-﻿#if Platforms_Windows
+#if Platforms_Windows
 using ClassIsland.Platform.Windows;
 using ClassIsland.Platform.Windows.Helpers;
 using ClassIsland.Platform.Windows.Services;
@@ -40,6 +40,10 @@ class Program
             Debugger.Break();
         }    
 #endif
+        if (args.Contains("--bashu-homework-demo"))
+            return AppBuilder.Configure<BashuHomeworkPreviewApplication>().UsePlatformDetect()
+                .StartWithClassicDesktopLifetime(Array.Empty<string>());
+
         var stopTokenSource = new CancellationTokenSource();
         ActivatePlatforms(out var postInit, stopTokenSource.Token);
         var buildApp = ClassIsland.Program.AppEntry(args);

@@ -1110,6 +1110,11 @@ public partial class MainWindow : Window, ITopmostEffectPlayer
         App.GetService<SettingsWindowNew>().Open();
     }
 
+    private void MenuItemHomeworkPreview_OnClick(object? sender, EventArgs e)
+    {
+        ClassIsland.Views.BashuHomeworkPreviewWindow.ShowPreview();
+    }
+
     private async void MenuItemBindBashu_OnClick(object? sender, EventArgs e)
     {
         var dialog = new Controls.JoinManagementDialog();
