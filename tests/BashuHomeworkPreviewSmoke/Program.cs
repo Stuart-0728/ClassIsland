@@ -30,3 +30,9 @@ snapshot.Items.Clear(); vm.ApplySnapshot(snapshot); Check(vm.Cards.Count == 0 &&
 try { BashuHomeworkSnapshot.Parse("""{"schemaVersion":2,"revision":"bad","items":[]}"""); throw new Exception("invalid schema accepted"); } catch (FormatException) { Console.WriteLine("PASS incompatible snapshot rejected"); }
 var fixture = Environment.GetEnvironmentVariable("HOMEWORK_QA_SNAPSHOT");
 if (fixture != null) { vm.ApplySnapshot(BashuHomeworkSnapshot.Parse(File.ReadAllText(fixture))); Check(vm.IsLive && vm.Cards.Count > 0, "actual platform JSON deserializes and renders cards"); }
+var ticker = new BashuHomeworkPreviewViewModel { Stage = 1 };
+Check(ticker.CompactText.Contains("物理") && ticker.CompactText.Contains("示例同学甲"), "folded ticker includes assignment and checked missing names");
+ticker.AdvanceCompactCard(); Check(ticker.CompactText.Contains("数学"), "folded ticker cycles subjects");
+ticker.ShowNames = false; Check(!ticker.CompactText.Contains("示例同学"), "folded ticker respects name visibility and resets on update");
+ticker.ApplySnapshot(new BashuHomeworkSnapshot { SchemaVersion=1, Revision="empty" }); ticker.AdvanceCompactCard();
+Check(ticker.CompactText == "暂无待展示作业", "empty folded ticker clears stale work safely");

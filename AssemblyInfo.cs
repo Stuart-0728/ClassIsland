@@ -6,9 +6,9 @@ using ClassIsland;
 [assembly: AssemblyVersion("0.0.0.0")]
 [assembly: AssemblyInformationalVersion("NIXBUILD+NIXBUILD_LONG_HASH")]
 #else
-[assembly: AssemblyVersion("2.2.11.0")]
-[assembly: AssemblyFileVersion("2.2.11.0")]
-[assembly: AssemblyInformationalVersion($"2.2.11-preview.1+{GitInfo.CommitHash}")]
+[assembly: AssemblyVersion("2.2.12.0")]
+[assembly: AssemblyFileVersion("2.2.12.0")]
+[assembly: AssemblyInformationalVersion($"2.2.12-preview.1+{GitInfo.CommitHash}")]
 #endif
 
 [assembly: AssemblyTitle("ClassIsland")]

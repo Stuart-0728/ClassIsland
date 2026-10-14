@@ -14,13 +14,26 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     public bool IsLive { get; private set; }
     public bool IsDemo => !IsLive;
     public string Subtitle => IsLive ? $"{_snapshot?.ClassName ?? "班级作业"} · 平台自动同步" : "演示测试版 · 模拟班级 · 不连接真实数据";
+    public string ContextLabel => IsLive ? _snapshot?.ClassName ?? "班级作业" : "演示班级 · 测试预览";
+    public bool IsEmpty => Cards.Count == 0;
+    public string CompactSummary => Summary;
+    private int _compactIndex;
+    public string CompactText => Cards.Count == 0 ? Summary : FormatCompact(Cards[_compactIndex % Cards.Count]);
+    private static string FormatCompact(BashuHomeworkPreviewCard card) => string.Join(" · ",
+        new[] { card.Subject, card.Title, card.Content, card.Deadline, card.Status, card.Names }
+            .Where(x => !string.IsNullOrWhiteSpace(x))).Replace("\r", " ").Replace("\n", " ");
+    public void AdvanceCompactCard()
+    {
+        _compactIndex = Cards.Count == 0 ? 0 : (_compactIndex + 1) % Cards.Count;
+        OnPropertyChanged(nameof(CompactText));
+    }
     public string SyncHint { get; private set; } = "等待平台作业";
     public void ApplySnapshot(BashuHomeworkSnapshot snapshot)
     {
         IsLive = true; _snapshot = snapshot;
         SyncHint = $"{DateTime.Now:HH:mm:ss} 已同步 · 清查和补交结果自动更新";
         Refresh(); OnPropertyChanged(nameof(IsLive)); OnPropertyChanged(nameof(IsDemo));
-        OnPropertyChanged(nameof(Subtitle)); OnPropertyChanged(nameof(SyncHint));
+        OnPropertyChanged(nameof(ContextLabel)); OnPropertyChanged(nameof(Subtitle)); OnPropertyChanged(nameof(SyncHint));
     }
 
     private bool _expanded = true;
@@ -46,6 +59,7 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
         (_snapshot.Items.Any(x => !x.Checked) ? " · 部分待清查" : "");
     private void Refresh()
     {
+        _compactIndex = 0;
         Cards.Clear();
         if (IsLive)
         {
@@ -60,11 +74,11 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
                     missing > 0 ? "#AA6100" : "#007E73", missing > 0 ? "#FFF5DF" : "#E8F5F1",
                     item.Completed, missing, item.Checked));
             }
-            OnPropertyChanged(nameof(Summary)); return;
+            OnPropertyChanged(nameof(IsEmpty)); OnPropertyChanged(nameof(CompactSummary)); OnPropertyChanged(nameof(CompactText)); OnPropertyChanged(nameof(Summary)); return;
         }
         Cards.Add(Create("物理", "运动的描述 · 巩固练习", "教材 P32 第 1–4 题；写出分析过程。", "明天早读前交", Stage switch { 1 => 3, 2 => 2, _ => 0 }, Stage == 1 ? "示例同学甲、示例同学乙、示例同学丙" : "示例同学乙、示例同学丙"));
         Cards.Add(Create("数学", "整式的乘法 · 基础练习", "练习册 P18；选做题按课堂要求完成。", "明天第一节课前交", Stage is 1 or 2 ? 2 : 0, "示例同学丁、示例同学戊"));
-        OnPropertyChanged(nameof(Summary)); OnPropertyChanged(nameof(Hint));
+        OnPropertyChanged(nameof(IsEmpty)); OnPropertyChanged(nameof(CompactSummary)); OnPropertyChanged(nameof(CompactText)); OnPropertyChanged(nameof(Summary)); OnPropertyChanged(nameof(Hint));
     }
     private BashuHomeworkPreviewCard Create(string subject, string title, string content, string deadline, int missing, string names)
     {

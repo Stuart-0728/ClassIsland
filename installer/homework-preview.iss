@@ -3,7 +3,7 @@
 [Setup]
 AppId={{4C387517-7940-4B38-9A79-6101ABE530DA}}
 AppName={#AppName}
-AppVersion=2.2.11
+AppVersion=2.2.12
 DefaultDirName={localappdata}\BashuHomeworkPreview
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest

@@ -1,53 +1,69 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:ClassIsland.ViewModels" x:Class="ClassIsland.Views.BashuHomeworkPreviewWindow"
         x:DataType="vm:BashuHomeworkPreviewViewModel" Title="巴蜀作业悬浮窗 · 演示测试版"
-        Width="460" Height="720" MinWidth="340" MinHeight="100" MaxWidth="720"
+        Width="440" Height="690" MinWidth="340" MinHeight="320" MaxWidth="720"
         Topmost="True" ShowInTaskbar="True" SystemDecorations="None" CanResize="True"
         Background="Transparent" TransparencyLevelHint="Transparent" FontFamily="Microsoft YaHei UI, PingFang SC, sans-serif"
         FontSize="{Binding TextSize}" WindowStartupLocation="CenterScreen">
   <Window.Styles>
-    <Style Selector="Button"><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="12,8"/><Setter Property="FontSize" Value="14"/></Style>
-    <Style Selector="TextBlock"><Setter Property="Foreground" Value="#213B3A"/></Style>
-    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#647C79"/><Setter Property="FontSize" Value="13"/></Style>
+    <Style Selector="Button"><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="10,6"/><Setter Property="FontSize" Value="13"/><Setter Property="MinHeight" Value="32"/></Style>
+    <Style Selector="Button.quiet"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Foreground" Value="#667873"/></Style>
+    <Style Selector="TextBlock"><Setter Property="Foreground" Value="#263C36"/></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#82908C"/><Setter Property="FontSize" Value="12"/></Style>
     <Style Selector="Button.primary"><Setter Property="Background" Value="#00897B"/><Setter Property="Foreground" Value="White"/></Style>
   </Window.Styles>
-  <Border Margin="8" CornerRadius="18" Background="#F4F8F7" BorderBrush="#BCD8D2" BorderThickness="1" BoxShadow="0 4 12 0 #250B4037" ClipToBounds="True">
+  <Border Margin="8" CornerRadius="16" Background="#FAFCFB" BorderBrush="#DAE5E1" BorderThickness="1" BoxShadow="0 3 10 0 #200F382E" ClipToBounds="True">
     <Grid RowDefinitions="Auto,*,Auto">
-      <Border Padding="18,14" Background="#E4F2EE" PointerPressed="Header_OnPointerPressed">
-        <Grid ColumnDefinitions="*,Auto">
-          <StackPanel Spacing="6">
-            <TextBlock Text="班级作业" FontSize="21" FontWeight="Bold"/>
-            <TextBlock Text="{Binding Summary}" FontSize="13" Foreground="#007E73" TextWrapping="Wrap"/>
-            <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="#687D77" TextWrapping="Wrap"/>
-          </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
-            <Button Content="{Binding FoldLabel}" Click="Fold_OnClick" AutomationProperties.Name="收起或展开作业悬浮窗"/>
-            <Button Content="×" Click="Close_OnClick" AutomationProperties.Name="关闭作业悬浮窗"/>
-          </StackPanel>
+      <Border Padding="18,14" Background="White" PointerPressed="Header_OnPointerPressed">
+        <Grid>
+          <Grid IsVisible="{Binding Expanded}" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <StackPanel Spacing="5">
+              <TextBlock Text="班级作业" FontSize="20" FontWeight="Bold"/>
+              <TextBlock Text="{Binding ContextLabel}" Classes="muted" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top">
+              <Button x:Name="FoldButton" Content="收起" Classes="quiet" Click="Fold_OnClick" AutomationProperties.Name="收起作业悬浮窗"/>
+              <Button Content="×" Classes="quiet" FontSize="19" Click="Close_OnClick" AutomationProperties.Name="关闭作业悬浮窗"/>
+            </StackPanel>
+          </Grid>
+          <Grid IsVisible="{Binding !Expanded}" ColumnDefinitions="4,*,Auto" ColumnSpacing="12">
+            <Border Background="#00897B" CornerRadius="2"/>
+            <StackPanel Grid.Column="1" Spacing="3">
+              <TextBlock Text="班级作业" FontSize="15" FontWeight="Bold"/>
+              <Canvas x:Name="CompactViewport" Height="18" ClipToBounds="True">
+                <TextBlock x:Name="CompactTicker" Text="{Binding CompactText}" FontSize="12" Foreground="#008578" Canvas.Left="0"/>
+              </Canvas>
+            </StackPanel>
+            <Button x:Name="ExpandButton" Grid.Column="2" Content="展开" Classes="quiet" VerticalAlignment="Center" Click="Fold_OnClick" AutomationProperties.Name="展开作业悬浮窗"/>
+          </Grid>
         </Grid>
       </Border>
       <ScrollViewer Grid.Row="1" IsVisible="{Binding Expanded}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="16,14" Spacing="12">
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-            <CheckBox Content="显示待补交姓名" IsChecked="{Binding ShowNames}" FontSize="13" VerticalAlignment="Center"/>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4"><Button Content="A−" Click="Smaller_OnClick"/><Button Content="A+" Click="Larger_OnClick"/></StackPanel>
-          </Grid>
+        <StackPanel Margin="16,4,16,12" Spacing="12">
+          <Border Background="#EAF5F1" Padding="12,9" CornerRadius="8">
+            <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#227C69" TextWrapping="Wrap"/>
+          </Border>
+          <Border IsVisible="{Binding IsEmpty}" Padding="20,40">
+            <StackPanel Spacing="8"><TextBlock Text="暂无作业" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="老师布置后会自动显示在这里" Classes="muted" HorizontalAlignment="Center"/></StackPanel>
+          </Border>
           <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="12"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:BashuHomeworkPreviewCard">
-                <Border Padding="16" Background="White" BorderBrush="#DCE8E4" BorderThickness="1" CornerRadius="12">
-                  <StackPanel Spacing="10">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                      <TextBlock Text="{Binding Subject}" FontWeight="Bold" FontSize="19" VerticalAlignment="Center"/>
-                      <Border Grid.Column="1" Background="{Binding StatusBackground}" CornerRadius="6" Padding="9,5"><TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="13" FontWeight="SemiBold"/></Border>
+                <Border Padding="16,14" Background="White" BorderBrush="#E3EBE7" BorderThickness="1" CornerRadius="12">
+                  <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,2">
+                      <TextBlock Text="{Binding Subject}" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                      <Border Grid.Column="1" Background="{Binding StatusBackground}" CornerRadius="5" Padding="8,4"><TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="12"/></Border>
                     </Grid>
                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="#516B66"/>
+                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="#62756D"/>
                     <TextBlock Text="{Binding Deadline}" Classes="muted" TextWrapping="Wrap"/>
-                    <Border Height="1" Background="#EDF2F0"/>
+                    <Border Height="1" Background="#EFF3F1" Margin="0,3"/>
                     <TextBlock Text="{Binding Counts}" Classes="muted" TextWrapping="Wrap"/>
-                    <Border IsVisible="{Binding HasNames}" Background="#FFF8E9" CornerRadius="8" Padding="10"><TextBlock Text="{Binding Names}" Foreground="#985600" TextWrapping="Wrap"/></Border>
+                    <Border IsVisible="{Binding HasNames}" Background="#FFF8EB" CornerRadius="7" Padding="10,8">
+                      <StackPanel Spacing="4"><TextBlock Text="待补交" FontSize="11" Foreground="#AD7B32"/><TextBlock Text="{Binding Names}" Foreground="#865D22" TextWrapping="Wrap"/></StackPanel>
+                    </Border>
                   </StackPanel>
                 </Border>
               </DataTemplate>
@@ -55,18 +71,24 @@
           </ItemsControl>
         </StackPanel>
       </ScrollViewer>
-      <Border Grid.Row="2" IsVisible="{Binding Expanded}" Background="#EAF1EE" Padding="16,12">
-        <StackPanel Spacing="10">
-          <TextBlock IsVisible="{Binding IsLive}" Text="{Binding SyncHint}" FontSize="12" TextWrapping="Wrap"/>
-          <StackPanel IsVisible="{Binding IsDemo}" Spacing="10">
-          <TextBlock Text="演示控制 · 不会修改平台数据" FontSize="12" Foreground="#647C79"/>
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-            <ComboBox ItemsSource="{Binding Stages}" SelectedIndex="{Binding Stage}" HorizontalAlignment="Stretch" FontSize="14"/>
-            <Button Grid.Column="1" Classes="primary" Content="下一步" Click="Next_OnClick"/>
-          </Grid>
-          <TextBlock Text="{Binding Hint}" FontSize="12" Foreground="#647C79" TextWrapping="Wrap"/>
+      <Border Grid.Row="2" IsVisible="{Binding Expanded}" Background="White" BorderBrush="#EBF0ED" BorderThickness="0,1,0,0" Padding="16,0">
+        <Expander x:Name="DisplaySettings" Header="显示设置" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" FontSize="12" IsExpanded="False">
+          <StackPanel Spacing="10" Margin="0,0,0,12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <CheckBox Content="显示待补交姓名" IsChecked="{Binding ShowNames}" FontSize="12" VerticalAlignment="Center"/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4"><Button Content="A−" Click="Smaller_OnClick" AutomationProperties.Name="缩小字号"/><Button Content="A+" Click="Larger_OnClick" AutomationProperties.Name="放大字号"/></StackPanel>
+            </Grid>
+            <TextBlock IsVisible="{Binding IsLive}" Text="{Binding SyncHint}" Classes="muted" TextWrapping="Wrap"/>
+            <StackPanel IsVisible="{Binding IsDemo}" Spacing="8">
+              <TextBlock Text="演示控制 · 不会修改平台数据" Classes="muted"/>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <ComboBox ItemsSource="{Binding Stages}" SelectedIndex="{Binding Stage}" HorizontalAlignment="Stretch" FontSize="13"/>
+                <Button Grid.Column="1" Classes="primary" Content="下一步" Click="Next_OnClick"/>
+              </Grid>
+              <TextBlock Text="{Binding Hint}" Classes="muted" TextWrapping="Wrap"/>
+            </StackPanel>
           </StackPanel>
-        </StackPanel>
+        </Expander>
       </Border>
     </Grid>
   </Border>
