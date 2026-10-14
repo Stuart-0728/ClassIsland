@@ -150,7 +150,4 @@ public partial class BashuHomeworkPreviewWindow : Window
         if (_tickerSeconds >= (distance > 0 ? 4 + distance / speed : 6)) ViewModel.AdvanceCompactCard();
     }
     private void Close_OnClick(object? sender, RoutedEventArgs e) => Close();
-    private void Next_OnClick(object? sender, RoutedEventArgs e) => ViewModel.Next();
-    private void Smaller_OnClick(object? sender, RoutedEventArgs e) => ViewModel.TextSize -= 2;
-    private void Larger_OnClick(object? sender, RoutedEventArgs e) => ViewModel.TextSize += 2;
 }

@@ -14,7 +14,7 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     public bool IsLive { get; private set; }
     public bool IsDemo => !IsLive;
     public string Subtitle => IsLive ? $"{_snapshot?.ClassName ?? "班级作业"} · 平台自动同步" : "演示测试版 · 模拟班级 · 不连接真实数据";
-    public string ContextLabel => IsLive ? _snapshot?.ClassName ?? "班级作业" : "演示班级 · 测试预览";
+    public string ContextLabel => IsLive ? _snapshot?.ClassName ?? "班级作业" : "示例班级";
     public bool IsEmpty => Cards.Count == 0;
     public string CompactSummary => Summary;
     private int _compactIndex;

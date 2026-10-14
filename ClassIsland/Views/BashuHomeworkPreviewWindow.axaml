@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:ClassIsland.ViewModels" x:Class="ClassIsland.Views.BashuHomeworkPreviewWindow"
-        x:DataType="vm:BashuHomeworkPreviewViewModel" Title="巴蜀作业悬浮窗 · 演示测试版"
+        x:DataType="vm:BashuHomeworkPreviewViewModel" Title="班级作业"
         Width="440" Height="690" MinWidth="340" MinHeight="320" MaxWidth="720"
         Topmost="True" ShowInTaskbar="True" SystemDecorations="None" CanResize="True"
         Background="Transparent" TransparencyLevelHint="Transparent" FontFamily="Microsoft YaHei UI, PingFang SC, sans-serif"
@@ -13,7 +13,7 @@
     <Style Selector="Button.primary"><Setter Property="Background" Value="#00897B"/><Setter Property="Foreground" Value="White"/></Style>
   </Window.Styles>
   <Border Margin="8" CornerRadius="16" Background="#FAFCFB" BorderBrush="#DAE5E1" BorderThickness="1" BoxShadow="0 3 10 0 #200F382E" ClipToBounds="True">
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="Auto,*">
       <Border Padding="18,14" Background="White" PointerPressed="Header_OnPointerPressed">
         <Grid>
           <Grid IsVisible="{Binding Expanded}" ColumnDefinitions="*,Auto" ColumnSpacing="8">
@@ -71,25 +71,7 @@
           </ItemsControl>
         </StackPanel>
       </ScrollViewer>
-      <Border Grid.Row="2" IsVisible="{Binding Expanded}" Background="White" BorderBrush="#EBF0ED" BorderThickness="0,1,0,0" Padding="16,0">
-        <Expander x:Name="DisplaySettings" Header="显示设置" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" FontSize="12" IsExpanded="False">
-          <StackPanel Spacing="10" Margin="0,0,0,12">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <CheckBox Content="显示待补交姓名" IsChecked="{Binding ShowNames}" FontSize="12" VerticalAlignment="Center"/>
-              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4"><Button Content="A−" Click="Smaller_OnClick" AutomationProperties.Name="缩小字号"/><Button Content="A+" Click="Larger_OnClick" AutomationProperties.Name="放大字号"/></StackPanel>
-            </Grid>
-            <TextBlock IsVisible="{Binding IsLive}" Text="{Binding SyncHint}" Classes="muted" TextWrapping="Wrap"/>
-            <StackPanel IsVisible="{Binding IsDemo}" Spacing="8">
-              <TextBlock Text="演示控制 · 不会修改平台数据" Classes="muted"/>
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <ComboBox ItemsSource="{Binding Stages}" SelectedIndex="{Binding Stage}" HorizontalAlignment="Stretch" FontSize="13"/>
-                <Button Grid.Column="1" Classes="primary" Content="下一步" Click="Next_OnClick"/>
-              </Grid>
-              <TextBlock Text="{Binding Hint}" Classes="muted" TextWrapping="Wrap"/>
-            </StackPanel>
-          </StackPanel>
-        </Expander>
-      </Border>
+
     </Grid>
   </Border>
 </Window>
