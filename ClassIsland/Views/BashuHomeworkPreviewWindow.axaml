@@ -79,21 +79,26 @@
             </Border.Background>
           </Border>
 
-          <!-- 2. 信息主体 -->
-          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-            <!-- 上行：班级名称 + 状态微标 -->
-            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6" VerticalAlignment="Center">
-              <TextBlock Text="{Binding ContextLabel}" FontSize="12" FontWeight="Bold" Foreground="#15362C" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-              <Border Grid.Column="1" Background="{Binding CurrentStatusBackground}" BorderBrush="{Binding CurrentStatusBorder}"
-                      BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
-                <TextBlock Text="{Binding CurrentStatus}" Foreground="{Binding CurrentStatusColor}" FontSize="10" FontWeight="SemiBold"/>
-              </Border>
-            </Grid>
-            <!-- 下行：单行平滑跑马灯/提示语 -->
-            <Canvas x:Name="CompactViewport" Height="16" ClipToBounds="True" VerticalAlignment="Center">
-              <TextBlock x:Name="CompactTicker" Text="{Binding CompactText}" FontSize="11" Foreground="#446158" Canvas.Left="0"/>
-            </Canvas>
-          </StackPanel>
+          <!-- 2. 信息主体（带平滑切换动画裁切容器） -->
+          <Border Grid.Column="1" ClipToBounds="True" VerticalAlignment="Center">
+            <StackPanel x:Name="CompactContentContainer" Spacing="2" VerticalAlignment="Center">
+              <StackPanel.RenderTransform>
+                <TranslateTransform Y="0"/>
+              </StackPanel.RenderTransform>
+              <!-- 上行：当前学科大标题（直接展示科目） + 状态微标 -->
+              <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6" VerticalAlignment="Center">
+                <TextBlock Text="{Binding CompactSubjectTitle}" FontSize="13" FontWeight="Bold" Foreground="#15362C" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <Border Grid.Column="1" Background="{Binding CurrentStatusBackground}" BorderBrush="{Binding CurrentStatusBorder}"
+                        BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding CurrentStatus}" Foreground="{Binding CurrentStatusColor}" FontSize="10" FontWeight="SemiBold"/>
+                </Border>
+              </Grid>
+              <!-- 下行：单行平滑跑马灯/提示语 -->
+              <Canvas x:Name="CompactViewport" Height="16" ClipToBounds="True" VerticalAlignment="Center">
+                <TextBlock x:Name="CompactTicker" Text="{Binding CompactText}" FontSize="11" Foreground="#446158" Canvas.Left="0"/>
+              </Canvas>
+            </StackPanel>
+          </Border>
 
           <!-- 3. 右侧统一的极简无框矢量操作按钮组 -->
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">

@@ -50,9 +50,12 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     public string CurrentStatusBackground => CurrentCard?.StatusBackground ?? "#E8F5F1";
     public string CurrentStatusBorder => CurrentCard?.StatusBorder ?? "#C5E3D8";
 
+    public string CompactSubjectTitle => Cards.Count == 0 ? (IsLive ? "班级作业" : "示例作业") : (CurrentCard?.Subject ?? "作业");
+
     public void AdvanceCompactCard()
     {
         _compactIndex = Cards.Count == 0 ? 0 : (_compactIndex + 1) % Cards.Count;
+        OnPropertyChanged(nameof(CompactSubjectTitle));
         OnPropertyChanged(nameof(CompactText));
         OnPropertyChanged(nameof(CurrentCard));
         OnPropertyChanged(nameof(CurrentSubject));
@@ -163,6 +166,7 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
         OnPropertyChanged(nameof(CompactText));
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(CurrentCard));
+        OnPropertyChanged(nameof(CompactSubjectTitle));
         OnPropertyChanged(nameof(CurrentSubject));
         OnPropertyChanged(nameof(CurrentSubjectColor));
         OnPropertyChanged(nameof(CurrentSubjectBackground));

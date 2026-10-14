@@ -7,6 +7,12 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
+using Avalonia.Media;
+using Avalonia.Styling;
+using System.Globalization;
+using System.Threading.Tasks;
 using ClassIsland.ViewModels;
 
 namespace ClassIsland.Views;
@@ -194,7 +200,63 @@ public partial class BashuHomeworkPreviewWindow : Window
         var distance = Math.Max(0, text.Bounds.Width - viewport.Bounds.Width);
         const double speed = 28;
         Canvas.SetLeft(text, -Math.Clamp((_tickerSeconds - 2) * speed, 0, distance));
-        if (_tickerSeconds >= (distance > 0 ? 4 + distance / speed : 6)) ViewModel.AdvanceCompactCard();
+        if (_tickerSeconds >= (distance > 0 ? 4 + distance / speed : 6))
+        {
+            _tickerSeconds = 0;
+            _ = AnimateSwitchCardAsync();
+        }
+    }
+    private bool _isSwitchingCard;
+    private async Task AnimateSwitchCardAsync()
+    {
+        if (_isSwitchingCard) return;
+        _isSwitchingCard = true;
+        try
+        {
+            var container = this.FindControl<StackPanel>("CompactContentContainer");
+            if (container != null && ViewModel.Cards.Count > 1)
+            {
+                var animOut = new Animation
+                {
+                    Duration = TimeSpan.FromMilliseconds(120),
+                    FillMode = FillMode.Forward,
+                    Children =
+                    {
+                        new KeyFrame { KeyTime = TimeSpan.FromMilliseconds(0), Setters = { new Setter(OpacityProperty, 1.0), new Setter(TranslateTransform.YProperty, 0.0) } },
+                        new KeyFrame { KeyTime = TimeSpan.FromMilliseconds(120), Setters = { new Setter(OpacityProperty, 0.0), new Setter(TranslateTransform.YProperty, -8.0) },
+                                       KeySpline = KeySpline.Parse("0.4, 0, 0.2, 1", CultureInfo.InvariantCulture) }
+                    }
+                };
+                await animOut.RunAsync(container);
+
+                ViewModel.AdvanceCompactCard();
+
+                var animIn = new Animation
+                {
+                    Duration = TimeSpan.FromMilliseconds(200),
+                    FillMode = FillMode.Forward,
+                    Children =
+                    {
+                        new KeyFrame { KeyTime = TimeSpan.FromMilliseconds(0), Setters = { new Setter(OpacityProperty, 0.0), new Setter(TranslateTransform.YProperty, 10.0) } },
+                        new KeyFrame { KeyTime = TimeSpan.FromMilliseconds(200), Setters = { new Setter(OpacityProperty, 1.0), new Setter(TranslateTransform.YProperty, 0.0) },
+                                       KeySpline = KeySpline.Parse("0.16, 1, 0.3, 1", CultureInfo.InvariantCulture) }
+                    }
+                };
+                await animIn.RunAsync(container);
+            }
+            else
+            {
+                ViewModel.AdvanceCompactCard();
+            }
+        }
+        catch
+        {
+            ViewModel.AdvanceCompactCard();
+        }
+        finally
+        {
+            _isSwitchingCard = false;
+        }
     }
     private void Close_OnClick(object? sender, RoutedEventArgs e) => Close();
 }
