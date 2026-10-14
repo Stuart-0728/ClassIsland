@@ -22,10 +22,28 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     private static string FormatCompact(BashuHomeworkPreviewCard card) => string.Join(" · ",
         new[] { card.Subject, card.Title, card.Content, card.Deadline, card.Status, card.Names }
             .Where(x => !string.IsNullOrWhiteSpace(x))).Replace("\r", " ").Replace("\n", " ");
+
+    public BashuHomeworkPreviewCard? CurrentCard => Cards.Count == 0 ? null : Cards[_compactIndex % Cards.Count];
+    public string CurrentSubject => CurrentCard?.Subject ?? "";
+    public string CurrentSubjectColor => CurrentCard?.SubjectColor ?? "#007E73";
+    public string CurrentSubjectBackground => CurrentCard?.SubjectBackground ?? "#E8F5F1";
+    public string CurrentStatus => CurrentCard?.Status ?? (Cards.Count == 0 ? "暂无作业" : "");
+    public string CurrentStatusColor => CurrentCard?.StatusColor ?? "#007E73";
+    public string CurrentStatusBackground => CurrentCard?.StatusBackground ?? "#E8F5F1";
+    public string CurrentStatusBorder => CurrentCard?.StatusBorder ?? "#C5E3D8";
+
     public void AdvanceCompactCard()
     {
         _compactIndex = Cards.Count == 0 ? 0 : (_compactIndex + 1) % Cards.Count;
         OnPropertyChanged(nameof(CompactText));
+        OnPropertyChanged(nameof(CurrentCard));
+        OnPropertyChanged(nameof(CurrentSubject));
+        OnPropertyChanged(nameof(CurrentSubjectColor));
+        OnPropertyChanged(nameof(CurrentSubjectBackground));
+        OnPropertyChanged(nameof(CurrentStatus));
+        OnPropertyChanged(nameof(CurrentStatusColor));
+        OnPropertyChanged(nameof(CurrentStatusBackground));
+        OnPropertyChanged(nameof(CurrentStatusBorder));
     }
     public string SyncHint { get; private set; } = "等待平台作业";
     public void ApplySnapshot(BashuHomeworkSnapshot snapshot)
@@ -36,7 +54,7 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
         OnPropertyChanged(nameof(ContextLabel)); OnPropertyChanged(nameof(Subtitle)); OnPropertyChanged(nameof(SyncHint));
     }
 
-    private bool _expanded = true;
+    private bool _expanded = false;
     private bool _showNames = true;
     private double _textSize = 16;
     public string[] Stages { get; } = ["1 · 布置作业", "2 · 清查完成", "3 · 学生补交", "4 · 全部交齐"];
@@ -57,6 +75,21 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     private string LiveSummary => _snapshot == null || _snapshot.Items.Count == 0 ? "暂无待展示作业" :
         $"{_snapshot.Items.Count} 项作业 · 待补交 {_snapshot.Items.Where(x => x.Checked).Sum(x => x.MissingNames.Count)} 人次" +
         (_snapshot.Items.Any(x => !x.Checked) ? " · 部分待清查" : "");
+
+    public static (string textColor, string bgColor, string tagBorder) GetSubjectStyle(string subject) => subject switch
+    {
+        "语文" => ("#A03E1B", "#FDF1EB", "#F7D8CB"),
+        "数学" => ("#0D6F8A", "#E9F6FA", "#C8E8F2"),
+        "英语" => ("#1D599A", "#EEF4FC", "#CCE0F5"),
+        "物理" => ("#13785B", "#EAF6F2", "#C8EADB"),
+        "化学" => ("#633A8C", "#F5EEFA", "#E3D2F3"),
+        "生物" => ("#2C7A3E", "#ECF7EE", "#C7EACD"),
+        "历史" => ("#8A5314", "#FAF2E8", "#EDDAC2"),
+        "道法" or "政治" => ("#A82E2E", "#FDF0F0", "#F7D2D2"),
+        "地理" => ("#207373", "#EBF7F7", "#C9ECEC"),
+        _ => ("#007E73", "#E8F5F1", "#CCE5DE")
+    };
+
     private void Refresh()
     {
         _compactIndex = 0;
@@ -67,36 +100,85 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
             {
                 var missing = item.Checked ? item.MissingNames.Count : 0;
                 var expected = Math.Max(0, item.Total - item.Excused);
+                var statusText = !item.Checked ? "待清查" : item.Total == 0 ? "暂无学生记录" : missing > 0 ? $"待补交 {missing} 人" : "已全部交齐";
+                var statusColor = !item.Checked ? "#5B6E68" : missing > 0 ? "#AA6100" : "#007E73";
+                var statusBg = !item.Checked ? "#EFF4F2" : missing > 0 ? "#FFF5DF" : "#E8F5F1";
+                var statusBorder = !item.Checked ? "#D8E2DF" : missing > 0 ? "#FADFA8" : "#C5E3D8";
+                var (sColor, sBg, _) = GetSubjectStyle(item.Subject);
+
                 Cards.Add(new(item.Subject, item.Title, item.Content, item.Deadline,
-                    !item.Checked ? "待清查" : item.Total == 0 ? "暂无学生记录" : missing > 0 ? $"待补交 {missing} 人" : "已全部交齐",
+                    statusText,
                     item.Checked ? $"应交 {expected} 人 · 已交 {item.Completed} 人 · 请假/免交 {item.Excused} 人" : "收交情况待核对",
                     item.Checked && ShowNames ? string.Join("、", item.MissingNames) : "",
-                    missing > 0 ? "#AA6100" : "#007E73", missing > 0 ? "#FFF5DF" : "#E8F5F1",
-                    item.Completed, missing, item.Checked));
+                    statusColor, statusBg,
+                    item.Completed, missing, item.Checked,
+                    sColor, sBg, statusBorder));
             }
-            OnPropertyChanged(nameof(IsEmpty)); OnPropertyChanged(nameof(CompactSummary)); OnPropertyChanged(nameof(CompactText)); OnPropertyChanged(nameof(Summary)); return;
+            NotifyCardsUpdated();
+            return;
         }
         Cards.Add(Create("物理", "运动的描述 · 巩固练习", "教材 P32 第 1–4 题；写出分析过程。", "明天早读前交", Stage switch { 1 => 3, 2 => 2, _ => 0 }, Stage == 1 ? "示例同学甲、示例同学乙、示例同学丙" : "示例同学乙、示例同学丙"));
         Cards.Add(Create("数学", "整式的乘法 · 基础练习", "练习册 P18；选做题按课堂要求完成。", "明天第一节课前交", Stage is 1 or 2 ? 2 : 0, "示例同学丁、示例同学戊"));
-        OnPropertyChanged(nameof(IsEmpty)); OnPropertyChanged(nameof(CompactSummary)); OnPropertyChanged(nameof(CompactText)); OnPropertyChanged(nameof(Summary)); OnPropertyChanged(nameof(Hint));
+        NotifyCardsUpdated();
+        OnPropertyChanged(nameof(Hint));
     }
+
+    private void NotifyCardsUpdated()
+    {
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(CompactSummary));
+        OnPropertyChanged(nameof(CompactText));
+        OnPropertyChanged(nameof(Summary));
+        OnPropertyChanged(nameof(CurrentCard));
+        OnPropertyChanged(nameof(CurrentSubject));
+        OnPropertyChanged(nameof(CurrentSubjectColor));
+        OnPropertyChanged(nameof(CurrentSubjectBackground));
+        OnPropertyChanged(nameof(CurrentStatus));
+        OnPropertyChanged(nameof(CurrentStatusColor));
+        OnPropertyChanged(nameof(CurrentStatusBackground));
+        OnPropertyChanged(nameof(CurrentStatusBorder));
+    }
+
     private BashuHomeworkPreviewCard Create(string subject, string title, string content, string deadline, int missing, string names)
     {
         var checkedAlready = Stage > 0;
+        var statusText = checkedAlready ? (missing > 0 ? $"待补交 {missing} 人" : "已全部交齐") : "待清查";
+        var statusColor = checkedAlready && missing > 0 ? "#AA6100" : (checkedAlready ? "#007E73" : "#5B6E68");
+        var statusBg = checkedAlready && missing > 0 ? "#FFF5DF" : (checkedAlready ? "#E8F5F1" : "#EFF4F2");
+        var statusBorder = checkedAlready && missing > 0 ? "#FADFA8" : (checkedAlready ? "#C5E3D8" : "#D8E2DF");
+        var (sColor, sBg, _) = GetSubjectStyle(subject);
+
         return new(subject, title, content, deadline,
-            checkedAlready ? (missing > 0 ? $"待补交 {missing} 人" : "已全部交齐") : "待清查",
+            statusText,
             checkedAlready ? $"应交 46 人 · 已交 {46 - missing} 人 · 请假/免交 2 人" : "班级 48 人 · 收交情况待核对",
             checkedAlready && missing > 0 && ShowNames ? names : "",
-            checkedAlready && missing > 0 ? "#AA6100" : "#007E73",
-            checkedAlready && missing > 0 ? "#FFF5DF" : "#E8F5F1",
-            checkedAlready ? 46 - missing : 0, missing, checkedAlready);
+            statusColor,
+            statusBg,
+            checkedAlready ? 46 - missing : 0, missing, checkedAlready,
+            sColor, sBg, statusBorder);
     }
 }
 
-public sealed record BashuHomeworkPreviewCard(string Subject, string Title, string Content, string Deadline,
-    string Status, string Counts, string Names, string StatusColor, string StatusBackground, int Submitted, int Missing, bool Checked)
+public sealed record BashuHomeworkPreviewCard(
+    string Subject,
+    string Title,
+    string Content,
+    string Deadline,
+    string Status,
+    string Counts,
+    string Names,
+    string StatusColor,
+    string StatusBackground,
+    int Submitted,
+    int Missing,
+    bool Checked,
+    string SubjectColor = "#007E73",
+    string SubjectBackground = "#E8F5F1",
+    string StatusBorder = "#C5E3D8"
+)
 {
     public bool HasNames => Names.Length > 0;
+    public string MissingCountLabel => Missing > 0 ? $"待补交学生名单（{Missing}人）" : "待补交学生名单";
 }
 
 public sealed class BashuHomeworkSnapshot

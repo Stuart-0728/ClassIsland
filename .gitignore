@@ -372,4 +372,7 @@ cipx/
 **/.idea/avalonia.xml
 **/.idea/copilot.*
 ClassIsland/secrets.g.cs
+Library/
+publish.binlog
+
 

@@ -21,7 +21,7 @@ public partial class BashuHomeworkPreviewWindow : Window
     {
         var changed = _latest?.Revision != snapshot.Revision;
         _latest = snapshot;
-        if (_liveInstance == null && snapshot.Items.Count > 0 && _closedRevision != snapshot.Revision)
+        if (_liveInstance == null && _closedRevision != snapshot.Revision)
         {
             OpenLive();
             return;
@@ -45,7 +45,9 @@ public partial class BashuHomeworkPreviewWindow : Window
     {
         _liveInstance?.Close(); _liveInstance = null; _latest = null; _closedRevision = null;
     }
-    private double _expandedHeight = 690;
+    private const double CompactHeight = 70;
+    private const double CompactWidth = 380;
+    private double _expandedHeight = 680;
     private double _expandedWidth = 440;
     private readonly DispatcherTimer _tickerTimer = new() { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly Stopwatch _tickerClock = new();
@@ -55,6 +57,13 @@ public partial class BashuHomeworkPreviewWindow : Window
     {
         DataContext = ViewModel;
         Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
+        if (!ViewModel.Expanded)
+        {
+            Width = CompactWidth;
+            Height = CompactHeight;
+            CanResize = false;
+            MinHeight = 56;
+        }
         _tickerTimer.Tick += (_, _) => TickCompact();
         ViewModel.PropertyChanged += ViewModel_OnPropertyChanged;
         Opened += (_, _) => FitScreen();
@@ -80,10 +89,22 @@ public partial class BashuHomeworkPreviewWindow : Window
         var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
         if (screen == null) return;
         var scale = screen.Scaling;
-        Width = Math.Min(Width, screen.WorkingArea.Width / scale - 24);
-        Height = Math.Min(Height, screen.WorkingArea.Height / scale - 24);
-        _expandedHeight = Height;
-        Position = new PixelPoint(screen.WorkingArea.Right - (int)(Width * scale) - 12, screen.WorkingArea.Y + 12);
+        if (!ViewModel.Expanded)
+        {
+            CanResize = false;
+            Width = CompactWidth;
+            Height = CompactHeight;
+            MinHeight = 56;
+        }
+        else
+        {
+            CanResize = true;
+            Width = Math.Min(_expandedWidth, screen.WorkingArea.Width / scale - 24);
+            Height = Math.Min(_expandedHeight, screen.WorkingArea.Height / scale - 24);
+            _expandedHeight = Height;
+            _expandedWidth = Width;
+        }
+        Position = new PixelPoint(screen.WorkingArea.Right - (int)(Width * scale) - 16, screen.WorkingArea.Y + 16);
     }
     private void Header_OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -102,9 +123,9 @@ public partial class BashuHomeworkPreviewWindow : Window
             _expandedWidth = Width;
             ViewModel.Expanded = false;
             CanResize = false;
-            MinHeight = 88;
-            Width = 360;
-            Height = 88;
+            MinHeight = 56;
+            Width = CompactWidth;
+            Height = CompactHeight;
         }
         else
         {
