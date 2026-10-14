@@ -591,7 +591,17 @@ public partial class MainWindow : Window, ITopmostEffectPlayer
 
     private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
     {
-        
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                ClassIsland.Views.BashuHomeworkPreviewWindow.OpenLive();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogDebug(ex, "初始化启动作业小悬浮窗跳过。");
+            }
+        }, DispatcherPriority.Background);
     }
 
     private void LayoutContainerGrid_OnSizeChanged(object? sender, SizeChangedEventArgs e)

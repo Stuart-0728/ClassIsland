@@ -1,128 +1,104 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:ClassIsland.ViewModels" x:Class="ClassIsland.Views.BashuHomeworkPreviewWindow"
         x:DataType="vm:BashuHomeworkPreviewViewModel" Title="班级作业"
-        Width="380" Height="68" MinWidth="260" MinHeight="52" MaxWidth="900"
+        Width="360" Height="54" MinWidth="240" MinHeight="44" MaxWidth="900"
         Topmost="True" ShowInTaskbar="True" SystemDecorations="None" CanResize="False"
         Background="Transparent" TransparencyLevelHint="Transparent" FontFamily="Microsoft YaHei UI, PingFang SC, sans-serif"
         FontSize="{Binding TextSize}" WindowStartupLocation="CenterScreen">
 
   <Window.Resources>
-    <!-- 极简现代矢量几何 Path 数据（纯矢量渲染，清晰锐利无任何 emoji） -->
-    <StreamGeometry x:Key="IconBook">M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5z M6 6h10 M6 10h10 M6 14h6</StreamGeometry>
-    <StreamGeometry x:Key="IconChevronDown">M4 7l6 6 6-6</StreamGeometry>
-    <StreamGeometry x:Key="IconChevronUp">M16 13l-6-6-6 6</StreamGeometry>
-    <StreamGeometry x:Key="IconClose">M15 5L5 15 M5 5l10 10</StreamGeometry>
+    <!-- 极简现代几何矢量 Path（纯矢量无任何 emoji） -->
+    <StreamGeometry x:Key="IconChevronDown">M3 5l5 5 5-5</StreamGeometry>
+    <StreamGeometry x:Key="IconChevronUp">M13 11l-5-5-5 5</StreamGeometry>
+    <StreamGeometry x:Key="IconClose">M13 3L3 13 M3 3l10 10</StreamGeometry>
     <StreamGeometry x:Key="IconSliders">M3 17v-4 M3 9V3 M10 21v-8 M10 9V3 M17 21v-4 M17 13V3 M1 13h4 M8 9h4 M15 17h4</StreamGeometry>
     <StreamGeometry x:Key="IconClock">M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M10 5v5l3.5 2</StreamGeometry>
     <StreamGeometry x:Key="IconAlert">M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M10 7v4 M10 14h.01</StreamGeometry>
   </Window.Resources>
 
   <Window.Styles>
-    <Style Selector="Button"><Setter Property="CornerRadius" Value="7"/><Setter Property="Padding" Value="6"/><Setter Property="MinHeight" Value="28"/><Setter Property="MinWidth" Value="28"/></Style>
-    <Style Selector="Button.icon-btn"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Foreground" Value="#556E66"/><Setter Property="Cursor" Value="Hand"/></Style>
-    <Style Selector="Button.icon-btn:pointerover"><Setter Property="Background" Value="#EDF5F2"/><Setter Property="Foreground" Value="#0A7A57"/></Style>
-    <Style Selector="Button.icon-primary"><Setter Property="Background" Value="#E6F5EF"/><Setter Property="BorderBrush" Value="#C2E4D5"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Foreground" Value="#0A7A57"/><Setter Property="Cursor" Value="Hand"/></Style>
-    <Style Selector="Button.icon-primary:pointerover"><Setter Property="Background" Value="#00897B"/><Setter Property="BorderBrush" Value="#00897B"/><Setter Property="Foreground" Value="White"/></Style>
-    <Style Selector="Button.icon-primary:pointerover Path"><Setter Property="Stroke" Value="White"/></Style>
-    <Style Selector="Button.icon-danger"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Foreground" Value="#6B7E78"/><Setter Property="Cursor" Value="Hand"/></Style>
-    <Style Selector="Button.icon-danger:pointerover"><Setter Property="Background" Value="#FEE2E2"/><Setter Property="Foreground" Value="#DC2626"/></Style>
-    <Style Selector="Button.icon-danger:pointerover Path"><Setter Property="Stroke" Value="#DC2626"/></Style>
+    <Style Selector="Button"><Setter Property="CornerRadius" Value="6"/><Setter Property="Padding" Value="4"/><Setter Property="MinHeight" Value="24"/><Setter Property="MinWidth" Value="24"/></Style>
+    <Style Selector="Button.icon-btn">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Foreground" Value="#556E66"/>
+      <Setter Property="Width" Value="26"/>
+      <Setter Property="Height" Value="26"/>
+      <Setter Property="Padding" Value="5"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.icon-btn:pointerover">
+      <Setter Property="Background" Value="#EDF6F3"/>
+      <Setter Property="Foreground" Value="#0A7A57"/>
+    </Style>
+    <Style Selector="Button.icon-btn:pointerover Path">
+      <Setter Property="Stroke" Value="#0A7A57"/>
+    </Style>
+    <Style Selector="Button.icon-danger">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Foreground" Value="#6B7E78"/>
+      <Setter Property="Width" Value="26"/>
+      <Setter Property="Height" Value="26"/>
+      <Setter Property="Padding" Value="6"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.icon-danger:pointerover">
+      <Setter Property="Background" Value="#FEE2E2"/>
+      <Setter Property="Foreground" Value="#DC2626"/>
+    </Style>
+    <Style Selector="Button.icon-danger:pointerover Path">
+      <Setter Property="Stroke" Value="#DC2626"/>
+    </Style>
     <Style Selector="TextBlock"><Setter Property="Foreground" Value="#1C3830"/></Style>
-    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#788F88"/><Setter Property="FontSize" Value="12"/></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#788F88"/><Setter Property="FontSize" Value="11"/></Style>
   </Window.Styles>
 
-  <!-- 外层卡片边框与柔和高级阴影 -->
+  <!-- 缩放容器：彻底分离收起态胶囊与展开态看板，根除任何多余空白与边框 -->
   <LayoutTransformControl>
     <LayoutTransformControl.LayoutTransform>
       <ScaleTransform ScaleX="{Binding WindowScale}" ScaleY="{Binding WindowScale}"/>
     </LayoutTransformControl.LayoutTransform>
-    <Border Margin="6" CornerRadius="14" Background="#FAFCFB" BorderBrush="#D1E2DB" BorderThickness="1"
-            BoxShadow="0 4 18 0 #180C3426, 0 1 3 0 #0A000000" ClipToBounds="True">
-      <Grid RowDefinitions="Auto,*">
-        <!-- 控制栏：收起时作为小胶囊悬浮窗内容，展开时作为标题栏 -->
-        <Border Padding="12,8" Background="White" BorderBrush="#EAEFEA" BorderThickness="0,0,0,1" PointerPressed="Header_OnPointerPressed">
-          <Grid>
-          <!-- 展开态标题栏 -->
-          <Grid IsVisible="{Binding Expanded}" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" VerticalAlignment="Center">
-            <!-- 绿色的渐变竖线 -->
-            <Border Width="3.5" Height="30" CornerRadius="2" VerticalAlignment="Center">
-              <Border.Background>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                  <GradientStop Offset="0.0" Color="#007E73"/>
-                  <GradientStop Offset="0.5" Color="#009688"/>
-                  <GradientStop Offset="1.0" Color="#2DD4BF"/>
-                </LinearGradientBrush>
-              </Border.Background>
-            </Border>
+    <Grid>
+      <!-- 收起态：纯粹精致胶囊卡片（零白边、上下边距精准对称） -->
+      <Border IsVisible="{Binding !Expanded}" Margin="4" CornerRadius="12" Background="#FFFFFF"
+              BorderBrush="#D5E4DE" BorderThickness="1"
+              BoxShadow="0 4 14 0 #140A3024, 0 1 3 0 #08000000"
+              Padding="11,6" VerticalAlignment="Center" PointerPressed="Header_OnPointerPressed">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="9" VerticalAlignment="Center">
+          <!-- 1. 标志性绿色微光渐变竖线（纯粹优雅，绝无杂质） -->
+          <Border Width="3.5" Height="24" CornerRadius="2" VerticalAlignment="Center">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Offset="0.0" Color="#007E73"/>
+                <GradientStop Offset="0.5" Color="#059669"/>
+                <GradientStop Offset="1.0" Color="#10B981"/>
+              </LinearGradientBrush>
+            </Border.Background>
+          </Border>
 
-            <!-- 标题与状态 -->
-            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-              <TextBlock Text="班级作业看板" FontSize="16" FontWeight="Bold" Foreground="#15362C"/>
-              <TextBlock Text="{Binding Subtitle}" Classes="muted" TextTrimming="CharacterEllipsis" FontSize="11"/>
-            </StackPanel>
+          <!-- 2. 信息主体 -->
+          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+            <!-- 上行：班级名称 + 状态微标 -->
+            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6" VerticalAlignment="Center">
+              <TextBlock Text="{Binding ContextLabel}" FontSize="12" FontWeight="Bold" Foreground="#15362C" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+              <Border Grid.Column="1" Background="{Binding CurrentStatusBackground}" BorderBrush="{Binding CurrentStatusBorder}"
+                      BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding CurrentStatus}" Foreground="{Binding CurrentStatusColor}" FontSize="10" FontWeight="SemiBold"/>
+              </Border>
+            </Grid>
+            <!-- 下行：单行平滑跑马灯/提示语 -->
+            <Canvas x:Name="CompactViewport" Height="16" ClipToBounds="True" VerticalAlignment="Center">
+              <TextBlock x:Name="CompactTicker" Text="{Binding CompactText}" FontSize="11" Foreground="#446158" Canvas.Left="0"/>
+            </Canvas>
+          </StackPanel>
 
-            <!-- 右侧全图标按钮组 -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-              <!-- 大小缩放调节图标按钮 -->
-              <Button Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" AutomationProperties.Name="调节悬浮窗大小">
-                <Path Data="{StaticResource IconSliders}" Width="14" Height="14" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.5" StrokeLineCap="Round"/>
-                <Button.Flyout>
-                  <Flyout Placement="Bottom">
-                    <Border Padding="12,10" Background="White" CornerRadius="8" BorderBrush="#D8E6DF" BorderThickness="1">
-                      <StackPanel Spacing="8" Width="180">
-                        <TextBlock Text="悬浮窗大小缩放" FontWeight="Bold" FontSize="12" Foreground="#1A3830"/>
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                          <Slider Minimum="0.8" Maximum="1.4" Value="{Binding WindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
-                          <TextBlock Grid.Column="1" Text="{Binding WindowScalePercentText}" FontSize="12" VerticalAlignment="Center"/>
-                        </Grid>
-                      </StackPanel>
-                    </Border>
-                  </Flyout>
-                </Button.Flyout>
-              </Button>
-              <!-- 收起图标按钮（纯图标，ChevronUp 向上收起箭头） -->
-              <Button x:Name="FoldButton" Classes="icon-btn" Click="Fold_OnClick" ToolTip.Tip="收起悬浮窗" AutomationProperties.Name="收起作业悬浮窗">
-                <Path Data="{StaticResource IconChevronUp}" Width="13" Height="13" Stretch="Uniform" Stroke="#556E66" StrokeThickness="2.0" StrokeLineCap="Round" StrokeJoin="Round"/>
-              </Button>
-              <!-- 关闭图标按钮（纯图标，细线十字叉） -->
-              <Button Classes="icon-danger" Click="Close_OnClick" ToolTip.Tip="关闭悬浮窗" AutomationProperties.Name="关闭作业悬浮窗">
-                <Path Data="{StaticResource IconClose}" Width="12" Height="12" Stretch="Uniform" Stroke="#6B7E78" StrokeThickness="1.8" StrokeLineCap="Round"/>
-              </Button>
-            </StackPanel>
-          </Grid>
-
-          <!-- 收起态小悬浮窗（现代精美胶囊） -->
-          <Grid IsVisible="{Binding !Expanded}" ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center">
-            <!-- 1. 绿色的渐变竖线 -->
-            <Border Width="3.5" Height="24" CornerRadius="2" VerticalAlignment="Center">
-              <Border.Background>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                  <GradientStop Offset="0.0" Color="#007E73"/>
-                  <GradientStop Offset="0.5" Color="#009688"/>
-                  <GradientStop Offset="1.0" Color="#2DD4BF"/>
-                </LinearGradientBrush>
-              </Border.Background>
-            </Border>
-
-            <!-- 2. 精美作业清单矢量小图标 -->
-            <Path Data="{StaticResource IconBook}" Width="14" Height="14" Stretch="Uniform"
-                  Stroke="#0E785F" StrokeThickness="1.6" VerticalAlignment="Center"/>
-
-            <!-- 3. 中间轮播作业与状态 -->
-            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
-              <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6">
-                <TextBlock Text="{Binding ContextLabel}" FontSize="12" FontWeight="Bold" Foreground="#19382F" VerticalAlignment="Center"/>
-                <Border Grid.Column="1" Background="{Binding CurrentStatusBackground}" BorderBrush="{Binding CurrentStatusBorder}" BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding CurrentStatus}" Foreground="{Binding CurrentStatusColor}" FontSize="10" FontWeight="SemiBold"/>
-                </Border>
-              </Grid>
-              <Canvas x:Name="CompactViewport" Height="17" ClipToBounds="True">
-                <TextBlock x:Name="CompactTicker" Text="{Binding CompactText}" FontSize="11" Foreground="#325047" Canvas.Left="0"/>
-              </Canvas>
-            </StackPanel>
-
-            <!-- 4. 大小调节图标按钮（带调节 Flyout） -->
-            <Button Grid.Column="3" Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" VerticalAlignment="Center" AutomationProperties.Name="调节大小">
+          <!-- 3. 右侧统一的极简无框矢量操作按钮组 -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <!-- 大小调节图标按钮 -->
+            <Button Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" VerticalAlignment="Center" AutomationProperties.Name="调节悬浮窗大小">
               <Path Data="{StaticResource IconSliders}" Width="13" Height="13" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.5" StrokeLineCap="Round"/>
               <Button.Flyout>
                 <Flyout Placement="Bottom">
@@ -139,82 +115,138 @@
               </Button.Flyout>
             </Button>
 
-            <!-- 5. 展开图标按钮（纯图标：ChevronDown 向下展开箭头） -->
-            <Button x:Name="ExpandButton" Grid.Column="4" Classes="icon-primary" VerticalAlignment="Center" Click="Fold_OnClick" ToolTip.Tip="展开详情看板" AutomationProperties.Name="展开作业悬浮窗">
-              <Path Data="{StaticResource IconChevronDown}" Width="12" Height="12" Stretch="Uniform" Stroke="#0A7A57" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <!-- 展开图标按钮 -->
+            <Button x:Name="ExpandButton" Classes="icon-btn" VerticalAlignment="Center" Click="Fold_OnClick" ToolTip.Tip="展开详情看板" AutomationProperties.Name="展开作业悬浮窗">
+              <Path Data="{StaticResource IconChevronDown}" Width="12" Height="12" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"/>
             </Button>
-          </Grid>
+          </StackPanel>
         </Grid>
       </Border>
 
-      <!-- 展开态作业列表 -->
-      <ScrollViewer Grid.Row="1" IsVisible="{Binding Expanded}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="12,8,12,14" Spacing="9">
-          <!-- 总体统计概览卡片 -->
-          <Border Background="#EAF5F1" BorderBrush="#CCE3DB" BorderThickness="1" Padding="12,8" CornerRadius="8">
-            <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#166B55" FontWeight="Medium" TextWrapping="Wrap"/>
+      <!-- 展开态：完整作业看板 -->
+      <Border IsVisible="{Binding Expanded}" Margin="5" CornerRadius="14" Background="#FAFCFB"
+              BorderBrush="#D0E2DB" BorderThickness="1"
+              BoxShadow="0 8 24 0 #180A3024, 0 2 6 0 #08000000" ClipToBounds="True">
+        <Grid RowDefinitions="Auto,*">
+          <!-- 标题栏 -->
+          <Border Padding="14,10" Background="White" BorderBrush="#E4ECE8" BorderThickness="0,0,0,1" PointerPressed="Header_OnPointerPressed">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" VerticalAlignment="Center">
+              <!-- 绿色的渐变竖线 -->
+              <Border Width="3.5" Height="28" CornerRadius="2" VerticalAlignment="Center">
+                <Border.Background>
+                  <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                    <GradientStop Offset="0.0" Color="#007E73"/>
+                    <GradientStop Offset="0.5" Color="#059669"/>
+                    <GradientStop Offset="1.0" Color="#10B981"/>
+                  </LinearGradientBrush>
+                </Border.Background>
+              </Border>
+
+              <!-- 标题与状态 -->
+              <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="班级作业看板" FontSize="15" FontWeight="Bold" Foreground="#15362C"/>
+                <TextBlock Text="{Binding Subtitle}" Classes="muted" TextTrimming="CharacterEllipsis" FontSize="11"/>
+              </StackPanel>
+
+              <!-- 右侧全图标按钮组 -->
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <!-- 大小调节图标按钮 -->
+                <Button Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" AutomationProperties.Name="调节悬浮窗大小">
+                  <Path Data="{StaticResource IconSliders}" Width="13" Height="13" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.5" StrokeLineCap="Round"/>
+                  <Button.Flyout>
+                    <Flyout Placement="Bottom">
+                      <Border Padding="12,10" Background="White" CornerRadius="8" BorderBrush="#D8E6DF" BorderThickness="1">
+                        <StackPanel Spacing="8" Width="180">
+                          <TextBlock Text="悬浮窗大小缩放" FontWeight="Bold" FontSize="12" Foreground="#1A3830"/>
+                          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Slider Minimum="0.8" Maximum="1.4" Value="{Binding WindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding WindowScalePercentText}" FontSize="12" VerticalAlignment="Center"/>
+                          </Grid>
+                        </StackPanel>
+                      </Border>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <!-- 收起图标按钮 -->
+                <Button x:Name="FoldButton" Classes="icon-btn" Click="Fold_OnClick" ToolTip.Tip="收起悬浮窗" AutomationProperties.Name="收起作业悬浮窗">
+                  <Path Data="{StaticResource IconChevronUp}" Width="12" Height="12" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"/>
+                </Button>
+                <!-- 关闭图标按钮 -->
+                <Button Classes="icon-danger" Click="Close_OnClick" ToolTip.Tip="关闭悬浮窗" AutomationProperties.Name="关闭作业悬浮窗">
+                  <Path Data="{StaticResource IconClose}" Width="11" Height="11" Stretch="Uniform" Stroke="#6B7E78" StrokeThickness="1.8" StrokeLineCap="Round"/>
+                </Button>
+              </StackPanel>
+            </Grid>
           </Border>
 
-          <!-- 暂无作业状态提示 -->
-          <Border IsVisible="{Binding IsEmpty}" Padding="20,40">
-            <StackPanel Spacing="8">
-              <TextBlock Text="今日暂无待展示作业" FontWeight="Bold" FontSize="14" Foreground="#1F3A32" HorizontalAlignment="Center"/>
-              <TextBlock Text="任课老师在平台布置后将自动实时同步到大屏" Classes="muted" HorizontalAlignment="Center"/>
-            </StackPanel>
-          </Border>
+          <!-- 展开态作业列表 -->
+          <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="12,8,12,14" Spacing="9">
+              <!-- 总体统计概览卡片 -->
+              <Border Background="#EAF5F1" BorderBrush="#CCE3DB" BorderThickness="1" Padding="12,8" CornerRadius="8">
+                <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#166B55" FontWeight="Medium" TextWrapping="Wrap"/>
+              </Border>
 
-          <!-- 作业卡片集合 -->
-          <ItemsControl ItemsSource="{Binding Cards}">
-            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="9"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:BashuHomeworkPreviewCard">
-                <Border Padding="14,12" Background="White" BorderBrush="#DFECE5" BorderThickness="1" CornerRadius="10" BoxShadow="0 2 6 0 #0C0F382E">
-                  <StackPanel Spacing="7">
-                    <!-- 卡片顶部：学科徽章 + 标题 + 状态药丸 -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
-                      <Border Background="{Binding SubjectBackground}" CornerRadius="5" Padding="6,2" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Subject}" Foreground="{Binding SubjectColor}" FontWeight="Bold" FontSize="12"/>
-                      </Border>
-                      <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="Bold" FontSize="14" Foreground="#1A362D" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                      <Border Grid.Column="2" Background="{Binding StatusBackground}" BorderBrush="{Binding StatusBorder}" BorderThickness="1" CornerRadius="5" Padding="7,2" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" FontWeight="SemiBold"/>
-                      </Border>
-                    </Grid>
+              <!-- 暂无作业状态提示 -->
+              <Border IsVisible="{Binding IsEmpty}" Padding="20,40">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="今日暂无待展示作业" FontWeight="Bold" FontSize="14" Foreground="#1F3A32" HorizontalAlignment="Center"/>
+                  <TextBlock Text="任课老师在平台布置后将自动实时同步到大屏" Classes="muted" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Border>
 
-                    <!-- 作业具体要求 -->
-                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="#445E55" FontSize="12" LineHeight="18"/>
-
-                    <!-- 截止时间（带时钟小图标） -->
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="5" VerticalAlignment="Center">
-                      <Path Data="{StaticResource IconClock}" Width="12" Height="12" Stretch="Uniform" Stroke="#788F88" StrokeThickness="1.4" VerticalAlignment="Center"/>
-                      <TextBlock Grid.Column="1" Text="{Binding Deadline}" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Center"/>
-                    </Grid>
-
-                    <!-- 分割细线 -->
-                    <Border Height="1" Background="#EEF4F1" Margin="0,1"/>
-
-                    <!-- 收交统计条 -->
-                    <TextBlock Text="{Binding Counts}" Classes="muted" TextWrapping="Wrap" FontSize="11"/>
-
-                    <!-- 待补交名单专区（仅在有名单时展示，带警示小图标） -->
-                    <Border IsVisible="{Binding HasNames}" Background="#FFF9EE" BorderBrush="#F5E4C6" BorderThickness="1" CornerRadius="7" Padding="10,7">
-                      <StackPanel Spacing="4">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="5" VerticalAlignment="Center">
-                          <Path Data="{StaticResource IconAlert}" Width="12" Height="12" Stretch="Uniform" Stroke="#B06A00" StrokeThickness="1.5" VerticalAlignment="Center"/>
-                          <TextBlock Grid.Column="1" Text="{Binding MissingCountLabel}" FontSize="11" FontWeight="Bold" Foreground="#B06A00" VerticalAlignment="Center"/>
+              <!-- 作业卡片集合 -->
+              <ItemsControl ItemsSource="{Binding Cards}">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="9"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:BashuHomeworkPreviewCard">
+                    <Border Padding="14,12" Background="White" BorderBrush="#DFECE5" BorderThickness="1" CornerRadius="10" BoxShadow="0 2 6 0 #0C0F382E">
+                      <StackPanel Spacing="7">
+                        <!-- 卡片顶部：学科徽章 + 标题 + 状态药丸 -->
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                          <Border Background="{Binding SubjectBackground}" CornerRadius="5" Padding="6,2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Subject}" Foreground="{Binding SubjectColor}" FontWeight="Bold" FontSize="12"/>
+                          </Border>
+                          <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="Bold" FontSize="14" Foreground="#1A362D" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                          <Border Grid.Column="2" Background="{Binding StatusBackground}" BorderBrush="{Binding StatusBorder}" BorderThickness="1" CornerRadius="5" Padding="7,2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" FontWeight="SemiBold"/>
+                          </Border>
                         </Grid>
-                        <TextBlock Text="{Binding Names}" Foreground="#8A5100" FontWeight="SemiBold" TextWrapping="Wrap" LineHeight="18" FontSize="12"/>
+
+                        <!-- 作业具体要求 -->
+                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="#445E55" FontSize="12" LineHeight="18"/>
+
+                        <!-- 截止时间（带时钟小图标） -->
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="5" VerticalAlignment="Center">
+                          <Path Data="{StaticResource IconClock}" Width="12" Height="12" Stretch="Uniform" Stroke="#788F88" StrokeThickness="1.4" VerticalAlignment="Center"/>
+                          <TextBlock Grid.Column="1" Text="{Binding Deadline}" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- 分割细线 -->
+                        <Border Height="1" Background="#EEF4F1" Margin="0,1"/>
+
+                        <!-- 收交统计条 -->
+                        <TextBlock Text="{Binding Counts}" Classes="muted" TextWrapping="Wrap" FontSize="11"/>
+
+                        <!-- 待补交名单专区（仅在有名单时展示，带警示小图标） -->
+                        <Border IsVisible="{Binding HasNames}" Background="#FFF9EE" BorderBrush="#F5E4C6" BorderThickness="1" CornerRadius="7" Padding="10,7">
+                          <StackPanel Spacing="4">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="5" VerticalAlignment="Center">
+                              <Path Data="{StaticResource IconAlert}" Width="12" Height="12" Stretch="Uniform" Stroke="#B06A00" StrokeThickness="1.5" VerticalAlignment="Center"/>
+                              <TextBlock Grid.Column="1" Text="{Binding MissingCountLabel}" FontSize="11" FontWeight="Bold" Foreground="#B06A00" VerticalAlignment="Center"/>
+                            </Grid>
+                            <TextBlock Text="{Binding Names}" Foreground="#8A5100" FontWeight="SemiBold" TextWrapping="Wrap" LineHeight="18" FontSize="12"/>
+                          </StackPanel>
+                        </Border>
                       </StackPanel>
                     </Border>
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </ScrollViewer>
-
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </Border>
     </Grid>
-  </Border>
   </LayoutTransformControl>
 </Window>

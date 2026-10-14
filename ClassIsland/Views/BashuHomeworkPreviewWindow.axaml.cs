@@ -51,9 +51,9 @@ public partial class BashuHomeworkPreviewWindow : Window
     {
         _liveInstance?.Close(); _liveInstance = null; _latest = null; _closedRevision = null;
     }
-    private const double BaseCompactHeight = 68;
-    private const double BaseCompactWidth = 380;
-    private const double BaseExpandedHeight = 680;
+    private const double BaseCompactHeight = 54;
+    private const double BaseCompactWidth = 360;
+    private const double BaseExpandedHeight = 640;
     private const double BaseExpandedWidth = 440;
 
     private double CompactHeight => BaseCompactHeight * ViewModel.WindowScale;
@@ -84,7 +84,7 @@ public partial class BashuHomeworkPreviewWindow : Window
             Width = CompactWidth;
             Height = CompactHeight;
             CanResize = false;
-            MinHeight = 52;
+            MinHeight = 44;
         }
         _tickerTimer.Tick += (_, _) => TickCompact();
         ViewModel.PropertyChanged += ViewModel_OnPropertyChanged;
@@ -110,7 +110,7 @@ public partial class BashuHomeworkPreviewWindow : Window
             CanResize = false;
             Width = CompactWidth;
             Height = CompactHeight;
-            MinHeight = 52;
+            MinHeight = 44;
         }
         else
         {
@@ -135,7 +135,7 @@ public partial class BashuHomeworkPreviewWindow : Window
         {
             ViewModel.Expanded = false;
             CanResize = false;
-            MinHeight = 52;
+            MinHeight = 44;
             Width = CompactWidth;
             Height = CompactHeight;
         }
