@@ -186,4 +186,21 @@ public class ManagementSettings : ObservableRecipient
             OnPropertyChanged();
         }
     }
+
+    private double _bashuHomeworkWindowScale = 1.0;
+
+    /// <summary>
+    /// 班级作业悬浮窗显示大小缩放比例（0.75 - 1.5，默认 1.0）。
+    /// </summary>
+    public double BashuHomeworkWindowScale
+    {
+        get => _bashuHomeworkWindowScale;
+        set
+        {
+            var clamped = Math.Clamp(Math.Round(value, 2), 0.75, 1.5);
+            if (Math.Abs(clamped - _bashuHomeworkWindowScale) < 0.001) return;
+            _bashuHomeworkWindowScale = clamped;
+            OnPropertyChanged();
+        }
+    }
 }

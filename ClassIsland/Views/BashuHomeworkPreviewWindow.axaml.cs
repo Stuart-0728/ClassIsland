@@ -31,11 +31,17 @@ public partial class BashuHomeworkPreviewWindow : Window
     }
     public static void OpenLive()
     {
-        if (_latest == null) return;
         if (_liveInstance == null)
         {
-            _liveInstance = new BashuHomeworkPreviewWindow { Title = "巴蜀班级作业 · 平台同步" };
-            _liveInstance.ViewModel.ApplySnapshot(_latest);
+            _liveInstance = new BashuHomeworkPreviewWindow { Title = "巴蜀班级作业 · 平台实时同步" };
+            if (_latest != null)
+            {
+                _liveInstance.ViewModel.ApplySnapshot(_latest);
+            }
+            else
+            {
+                _liveInstance.ViewModel.EnterLiveMode();
+            }
             _liveInstance.Closed += (_, _) => { _closedRevision = _latest?.Revision; _liveInstance = null; };
             _liveInstance.Show();
         }
@@ -45,16 +51,32 @@ public partial class BashuHomeworkPreviewWindow : Window
     {
         _liveInstance?.Close(); _liveInstance = null; _latest = null; _closedRevision = null;
     }
-    private const double CompactHeight = 70;
-    private const double CompactWidth = 380;
-    private double _expandedHeight = 680;
-    private double _expandedWidth = 440;
+    private const double BaseCompactHeight = 68;
+    private const double BaseCompactWidth = 380;
+    private const double BaseExpandedHeight = 680;
+    private const double BaseExpandedWidth = 440;
+
+    private double CompactHeight => BaseCompactHeight * ViewModel.WindowScale;
+    private double CompactWidth => BaseCompactWidth * ViewModel.WindowScale;
+    private double ExpandedHeight => BaseExpandedHeight * ViewModel.WindowScale;
+    private double ExpandedWidth => BaseExpandedWidth * ViewModel.WindowScale;
+
     private readonly DispatcherTimer _tickerTimer = new() { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly Stopwatch _tickerClock = new();
     private double _tickerSeconds;
     public BashuHomeworkPreviewViewModel ViewModel { get; } = new();
     public BashuHomeworkPreviewWindow()
     {
+        try
+        {
+            var mgmt = App.GetService<ClassIsland.Core.Abstractions.Services.Management.IManagementService>();
+            if (mgmt?.Settings?.BashuHomeworkWindowScale is > 0.5 and < 2.0)
+            {
+                ViewModel.WindowScale = mgmt.Settings.BashuHomeworkWindowScale;
+            }
+        }
+        catch { }
+
         DataContext = ViewModel;
         Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
         if (!ViewModel.Expanded)
@@ -62,7 +84,7 @@ public partial class BashuHomeworkPreviewWindow : Window
             Width = CompactWidth;
             Height = CompactHeight;
             CanResize = false;
-            MinHeight = 56;
+            MinHeight = 52;
         }
         _tickerTimer.Tick += (_, _) => TickCompact();
         ViewModel.PropertyChanged += ViewModel_OnPropertyChanged;
@@ -76,13 +98,7 @@ public partial class BashuHomeworkPreviewWindow : Window
     }
     public static void ShowPreview()
     {
-        if (_instance == null)
-        {
-            _instance = new BashuHomeworkPreviewWindow();
-            _instance.Closed += (_, _) => _instance = null;
-            _instance.Show();
-        }
-        _instance.Activate();
+        OpenLive();
     }
     private void FitScreen()
     {
@@ -94,15 +110,13 @@ public partial class BashuHomeworkPreviewWindow : Window
             CanResize = false;
             Width = CompactWidth;
             Height = CompactHeight;
-            MinHeight = 56;
+            MinHeight = 52;
         }
         else
         {
             CanResize = true;
-            Width = Math.Min(_expandedWidth, screen.WorkingArea.Width / scale - 24);
-            Height = Math.Min(_expandedHeight, screen.WorkingArea.Height / scale - 24);
-            _expandedHeight = Height;
-            _expandedWidth = Width;
+            Width = Math.Min(ExpandedWidth, screen.WorkingArea.Width / scale - 24);
+            Height = Math.Min(ExpandedHeight, screen.WorkingArea.Height / scale - 24);
         }
         Position = new PixelPoint(screen.WorkingArea.Right - (int)(Width * scale) - 16, screen.WorkingArea.Y + 16);
     }
@@ -119,11 +133,9 @@ public partial class BashuHomeworkPreviewWindow : Window
         var right = Position.X + (int)(Width * scale);
         if (ViewModel.Expanded)
         {
-            _expandedHeight = Height;
-            _expandedWidth = Width;
             ViewModel.Expanded = false;
             CanResize = false;
-            MinHeight = 56;
+            MinHeight = 52;
             Width = CompactWidth;
             Height = CompactHeight;
         }
@@ -131,9 +143,9 @@ public partial class BashuHomeworkPreviewWindow : Window
         {
             ViewModel.Expanded = true;
             CanResize = true;
-            MinHeight = 320;
-            Width = _expandedWidth;
-            Height = _expandedHeight;
+            MinHeight = 280;
+            Width = ExpandedWidth;
+            Height = ExpandedHeight;
         }
         // Keep the right edge anchored, including after dragging the folded reminder.
         var x = right - (int)(Width * scale);
@@ -149,6 +161,20 @@ public partial class BashuHomeworkPreviewWindow : Window
     }
     private void ViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(ViewModel.WindowScale))
+        {
+            try
+            {
+                var mgmt = App.GetService<ClassIsland.Core.Abstractions.Services.Management.IManagementService>();
+                if (mgmt?.Settings != null)
+                {
+                    mgmt.Settings.BashuHomeworkWindowScale = ViewModel.WindowScale;
+                }
+            }
+            catch { }
+            FitScreen();
+            return;
+        }
         if (e.PropertyName is not (nameof(ViewModel.Expanded) or nameof(ViewModel.CompactText))) return;
         _tickerSeconds = 0;
         Canvas.SetLeft(this.FindControl<TextBlock>("CompactTicker")!, 0);

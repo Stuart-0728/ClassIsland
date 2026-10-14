@@ -1,4 +1,4 @@
-﻿<ci:SettingsPageBase x:Class="ClassIsland.Views.SettingPages.ManagementSettingsPage"
+<ci:SettingsPageBase x:Class="ClassIsland.Views.SettingPages.ManagementSettingsPage"
       xmlns="https://github.com/avaloniaui"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
@@ -122,6 +122,20 @@
                             <TextBlock Text="开启后，平台通知、语音播报和实时对讲期间会临时将 Windows 系统音量提升到最大；全部播报结束后自动恢复原音量和静音状态。" TextWrapping="Wrap"/>
                         </StackPanel>
                         <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" IsChecked="{Binding ManagementService.Settings.BashuAutoMaximizeVolume, Mode=TwoWay}"/>
+                    </Grid>
+                </controls1:SettingsExpanderItem>
+                <controls1:SettingsExpanderItem>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <TextBlock Text="作业悬浮窗大小" FontWeight="Bold"/>
+                            <TextBlock Text="调整班级作业悬浮窗（收起小胶囊与展开看板）的显示缩放比例，适应不同大屏与分辨率需求。" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <Slider Width="130" Minimum="0.8" Maximum="1.4"
+                                    Value="{Binding ManagementService.Settings.BashuHomeworkWindowScale, Mode=TwoWay}"/>
+                            <TextBlock Width="42" VerticalAlignment="Center" TextAlignment="Right"
+                                       Text="{Binding ManagementService.Settings.BashuHomeworkWindowScale, StringFormat={}{0:P0}}"/>
+                        </StackPanel>
                     </Grid>
                 </controls1:SettingsExpanderItem>
             </StackPanel>

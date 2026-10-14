@@ -13,8 +13,10 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     private BashuHomeworkSnapshot? _snapshot;
     public bool IsLive { get; private set; }
     public bool IsDemo => !IsLive;
-    public string Subtitle => IsLive ? $"{_snapshot?.ClassName ?? "班级作业"} · 平台自动同步" : "演示测试版 · 模拟班级 · 不连接真实数据";
-    public string ContextLabel => IsLive ? _snapshot?.ClassName ?? "班级作业" : "示例班级";
+    public string Subtitle => IsLive
+        ? (_snapshot != null ? $"{_snapshot.ClassName} · 平台实时同步" : "平台实时同步 · 正在获取作业数据")
+        : "演示测试版 · 模拟班级 · 不连接真实数据";
+    public string ContextLabel => IsLive ? (_snapshot?.ClassName ?? "班级作业") : "示例班级";
     public bool IsEmpty => Cards.Count == 0;
     public string CompactSummary => Summary;
     private int _compactIndex;
@@ -23,11 +25,27 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
         new[] { card.Subject, card.Title, card.Content, card.Deadline, card.Status, card.Names }
             .Where(x => !string.IsNullOrWhiteSpace(x))).Replace("\r", " ").Replace("\n", " ");
 
+    private double _windowScale = 1.0;
+    public double WindowScale
+    {
+        get => _windowScale;
+        set
+        {
+            var clamped = Math.Clamp(Math.Round(value, 2), 0.75, 1.5);
+            if (Math.Abs(clamped - _windowScale) < 0.001) return;
+            if (SetProperty(ref _windowScale, clamped))
+            {
+                OnPropertyChanged(nameof(WindowScalePercentText));
+            }
+        }
+    }
+    public string WindowScalePercentText => $"{Math.Round(WindowScale * 100)}%";
+
     public BashuHomeworkPreviewCard? CurrentCard => Cards.Count == 0 ? null : Cards[_compactIndex % Cards.Count];
     public string CurrentSubject => CurrentCard?.Subject ?? "";
     public string CurrentSubjectColor => CurrentCard?.SubjectColor ?? "#007E73";
     public string CurrentSubjectBackground => CurrentCard?.SubjectBackground ?? "#E8F5F1";
-    public string CurrentStatus => CurrentCard?.Status ?? (Cards.Count == 0 ? "暂无作业" : "");
+    public string CurrentStatus => CurrentCard?.Status ?? (Cards.Count == 0 ? (IsLive ? "暂无作业" : "等待清查") : "");
     public string CurrentStatusColor => CurrentCard?.StatusColor ?? "#007E73";
     public string CurrentStatusBackground => CurrentCard?.StatusBackground ?? "#E8F5F1";
     public string CurrentStatusBorder => CurrentCard?.StatusBorder ?? "#C5E3D8";
@@ -46,6 +64,21 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentStatusBorder));
     }
     public string SyncHint { get; private set; } = "等待平台作业";
+
+    public void EnterLiveMode(string? className = null)
+    {
+        IsLive = true;
+        _snapshot = null;
+        SyncHint = "正在连接平台作业接口...";
+        Cards.Clear();
+        NotifyCardsUpdated();
+        OnPropertyChanged(nameof(IsLive));
+        OnPropertyChanged(nameof(IsDemo));
+        OnPropertyChanged(nameof(ContextLabel));
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(SyncHint));
+    }
+
     public void ApplySnapshot(BashuHomeworkSnapshot snapshot)
     {
         IsLive = true; _snapshot = snapshot;
