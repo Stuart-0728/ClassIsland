@@ -4,7 +4,7 @@ on:
   push:
     branches: [feat/bashu-homework-preview]
 permissions:
-  contents: read
+  contents: write
 jobs:
   preview:
     name: Windows ${{ matrix.arch }} preview
@@ -102,3 +102,9 @@ jobs:
           path: out_packages/*
           if-no-files-found: error
           retention-days: 30
+      - name: Publish to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release upload v2.2.12-preview.2 out_packages/* --clobber --repo ${{ github.repository }}
