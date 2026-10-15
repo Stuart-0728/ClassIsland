@@ -3,8 +3,9 @@ using System.Threading.Tasks;
 
 namespace ClassIsland.Services.SpeechService;
 
-public class EdgeTtsPlayInfo(string filePath, CancellationTokenSource cts, Task<bool>? downloadTask)
+public class EdgeTtsPlayInfo(string filePath, CancellationTokenSource cts, Task<bool>? downloadTask, string text = "")
 {
+    public string Text { get; } = text;
     public string FilePath { get; } = filePath;
     public CancellationTokenSource CancellationTokenSource { get; } = cts;
     public Task<bool>? DownloadTask { get; } = downloadTask;

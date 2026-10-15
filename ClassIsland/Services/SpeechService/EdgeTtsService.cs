@@ -44,6 +44,8 @@ public class EdgeTtsService : ISpeechService
     private bool IsPlaying { get; set; } = false;
 
     private EdgeTtsPlayInfo? _currentPlayInfo;
+    private ISpeechService? _fallbackSpeechService;
+    private readonly object _fallbackLock = new();
     
     public EdgeTtsService(IAudioService audioService, ILogger<EdgeTtsService> logger, SettingsService settingsService)
     {
@@ -89,13 +91,17 @@ public class EdgeTtsService : ISpeechService
             return;
         }
 
-        PlayingQueue.Enqueue(new EdgeTtsPlayInfo(cache, cancellationTokenSource, task));
+        PlayingQueue.Enqueue(new EdgeTtsPlayInfo(cache, cancellationTokenSource, task, text));
         _ = ProcessPlayerList();
     }
 
     public void ClearSpeechQueue()
     {
-        _currentPlayInfo?.CancellationTokenSource.Cancel();
+        lock (_fallbackLock)
+        {
+            _currentPlayInfo?.CancellationTokenSource.Cancel();
+            _fallbackSpeechService?.ClearSpeechQueue();
+        }
         while (PlayingQueue.Count > 0)
         {
             var playInfo = PlayingQueue.Dequeue();
@@ -125,7 +131,8 @@ public class EdgeTtsService : ISpeechService
                         var result = await playInfo.DownloadTask;
                         if (!result)
                         {
-                            Logger.LogDebug("语音缓存生成未完成：{}", playInfo.FilePath);
+                            Logger.LogWarning("在线语音生成失败，尝试系统语音。");
+                            TryFallbackSpeech(playInfo);
                             continue;
                         }
                         Logger.LogDebug("等待下载完成结束");
@@ -134,6 +141,7 @@ public class EdgeTtsService : ISpeechService
                     if (!File.Exists(playInfo.FilePath))
                     {
                         Logger.LogWarning("找不到语音缓存文件：{}", playInfo.FilePath);
+                        TryFallbackSpeech(playInfo);
                         continue;
                     }
 
@@ -142,9 +150,14 @@ public class EdgeTtsService : ISpeechService
                         (float)SettingsService.Settings.SpeechVolume, playInfo.CancellationTokenSource.Token);
                     Logger.LogDebug("结束播放 {}", playInfo.FilePath);
                 }
+                catch (OperationCanceledException)
+                {
+                    // Cancelling a notification must not start a fallback reading.
+                }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "无法播放语音。");
+                    Logger.LogError(ex, "无法播放在线语音，尝试系统语音。");
+                    TryFallbackSpeech(playInfo);
                 }
                 finally
                 {
@@ -157,6 +170,35 @@ public class EdgeTtsService : ISpeechService
         {
             _currentPlayInfo = null;
             IsPlaying = false;
+        }
+    }
+
+    private void TryFallbackSpeech(EdgeTtsPlayInfo playInfo)
+    {
+        lock (_fallbackLock)
+        {
+            if (playInfo.CancellationTokenSource.IsCancellationRequested || string.IsNullOrWhiteSpace(playInfo.Text))
+                return;
+            try
+            {
+                // Keep this instance separate so notification cancellation can also stop the fallback.
+                if (_fallbackSpeechService == null)
+                {
+                    if (OperatingSystem.IsWindows()) _fallbackSpeechService = new SystemSpeechService();
+                    else if (OperatingSystem.IsMacOS()) _fallbackSpeechService = new MacSpeechService();
+                    else
+                    {
+                        Logger.LogWarning("当前平台没有系统语音备用提供方。");
+                        return;
+                    }
+                }
+                _fallbackSpeechService.EnqueueSpeechQueue(playInfo.Text);
+                Logger.LogInformation("已切换系统语音朗读本次通知。");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "系统备用语音播放失败，请检查本机语音包和音频输出设备。");
+            }
         }
     }
 
