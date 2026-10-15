@@ -214,59 +214,18 @@ public class EdgeTtsService : ISpeechService
             return false;
         }
 
-        var completedSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var registration = cancellationToken.Register(() => completedSource.TrySetCanceled(cancellationToken));
-
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
         try
         {
-            var options = new PlayOption()
-            {
-                Text = text
-            };
-            var invokeTask = EdgeTts.InvokeAsync(options, voice, (Action<List<byte>>)(binary =>
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    completedSource.TrySetCanceled(cancellationToken);
-                    return;
-                }
-
-                try
-                {
-                    File.WriteAllBytes(cache, binary.ToArray());
-                    completedSource.TrySetResult(true);
-                }
-                catch (Exception ex)
-                {
-                    completedSource.TrySetException(ex);
-                }
-            }));
-            var completedTask =
-                await Task.WhenAny(completedSource.Task, invokeTask, Task.Delay(TimeSpan.FromSeconds(15)));
-
-            if (completedTask == completedSource.Task)
-            {
-                return await completedSource.Task;
-            }
-
-            if (completedTask == invokeTask)
-            {
-                await invokeTask;
-                if (completedSource.Task.IsCompleted)
-                {
-                    return await completedSource.Task;
-                }
-
-                Logger.LogWarning("EdgeTTS 调用已结束，但未生成语音缓存：{}", cache);
-                return false;
-            }
-
-            Logger.LogWarning("获取EdgeTTS语音超时。");
-            return false;
+            var audio = await EdgeSpeechClient.SynthesizeAsync(text, voice.ShortName, timeout.Token);
+            cancellationToken.ThrowIfCancellationRequested();
+            await File.WriteAllBytesAsync(cache, audio, cancellationToken);
+            return true;
         }
         catch (OperationCanceledException)
         {
-            Logger.LogInformation("已取消获取 EdgeTTS 语音：{}", text);
+            Logger.LogInformation(cancellationToken.IsCancellationRequested ? "已取消获取在线语音。" : "获取在线语音超时。");
             return false;
         }
         catch (Exception ex)

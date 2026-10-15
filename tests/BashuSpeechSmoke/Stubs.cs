@@ -25,3 +25,13 @@ namespace SoundFlow.Components { class Unused {} }
 namespace SoundFlow.Enums { class Unused {} }
 namespace SoundFlow.Providers { class Unused {} }
 namespace SoundFlow.Structs { class Unused {} }
+
+namespace ClassIsland.Services.SpeechService {
+ internal static class EdgeSpeechClient {
+  internal static async Task<byte[]> SynthesizeAsync(string text,string voice,CancellationToken cancellationToken) {
+   byte[]? audio=null;
+   await Edge_tts_sharp.EdgeTts.Invoke(new Edge_tts_sharp.Model.PlayOption { Text=text },bytes=>audio=bytes.ToArray()).WaitAsync(cancellationToken);
+   return audio ?? throw new IOException("No audio");
+  }
+ }
+}

@@ -31,6 +31,8 @@ jobs:
         run: |
           dotnet run --project tests/BashuHomeworkPreviewSmoke/BashuHomeworkPreviewSmoke.csproj
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/BashuSpeechProtocolSmoke/BashuSpeechProtocolSmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/BashuSpeechSmoke/BashuSpeechSmoke.csproj
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/BashuPlatformSmoke/BashuPlatformSmoke.csproj
@@ -44,7 +46,7 @@ jobs:
       - name: Publish self contained Windows preview
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.13 -p:AssemblyVersion=2.2.13.0 -p:FileVersion=2.2.13.0 -p:ApplicationVersion=2.2.13 -p:ApplicationDisplayVersion=2.2.13-preview.1 -o out_preview
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.13 -p:AssemblyVersion=2.2.13.0 -p:FileVersion=2.2.13.0 -p:ApplicationVersion=2.2.13 -p:ApplicationDisplayVersion=2.2.13-preview.2 -o out_preview
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:GOOS = 'windows'
           $env:GOARCH = if ('${{ matrix.arch }}' -eq 'x64') { 'amd64' } else { 'arm64' }
@@ -109,13 +111,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          gh release view v2.2.13-preview.1 --repo ${{ github.repository }} 2>$null
+          gh release view v2.2.13-preview.2 --repo ${{ github.repository }} 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create v2.2.13-preview.1 --target ${{ github.sha }} --prerelease --title '巴蜀测试版 2.2.13：语音播报兜底修复' --notes '在线语音被拒绝或播放失败时自动使用系统语音；确认关闭后停止朗读。包含 Windows x64 与 ARM64 安装包、便携包。' --repo ${{ github.repository }}
+            gh release create v2.2.13-preview.2 --target ${{ github.sha }} --prerelease --title '巴蜀测试版 2.2.13：最新悬浮窗与语音修复' --notes-file doc/BashuHomeworkPreviewRelease.md --repo ${{ github.repository }}
             if ($LASTEXITCODE -ne 0) {
-              gh release view v2.2.13-preview.1 --repo ${{ github.repository }}
+              gh release view v2.2.13-preview.2 --repo ${{ github.repository }}
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
           }
-          gh release upload v2.2.13-preview.1 out_packages/* --clobber --repo ${{ github.repository }}
+          gh release upload v2.2.13-preview.2 out_packages/* --clobber --repo ${{ github.repository }}
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
