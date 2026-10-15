@@ -51,6 +51,44 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
                 OnPropertyChanged(nameof(CompactWidthText));
         }
     }
+    private bool _isPinned = true;
+    public bool IsPinned
+    {
+        get => _isPinned;
+        set
+        {
+            if (!SetProperty(ref _isPinned, value)) return;
+            OnPropertyChanged(nameof(PinAngle));
+            OnPropertyChanged(nameof(PinActionText));
+        }
+    }
+    public double PinAngle => IsPinned ? 0 : -40;
+    public string PinActionText => IsPinned ? "取消置顶" : "置顶显示";
+
+    // Draft values keep the popup and its sliders stationary until the panel closes.
+    private double _draftWindowScale = 1;
+    public double DraftWindowScale
+    {
+        get => _draftWindowScale;
+        set
+        {
+            if (double.IsFinite(value) && SetProperty(ref _draftWindowScale, Math.Clamp(Math.Round(value, 2), 0.75, 1.5)))
+                OnPropertyChanged(nameof(DraftWindowScaleText));
+        }
+    }
+    private double _draftCompactWidth = 520;
+    public double DraftCompactWidth
+    {
+        get => _draftCompactWidth;
+        set
+        {
+            if (double.IsFinite(value) && SetProperty(ref _draftCompactWidth, Math.Clamp(Math.Round(value), 320, 960)))
+                OnPropertyChanged(nameof(DraftCompactWidthText));
+        }
+    }
+    public string DraftWindowScaleText => $"{Math.Round(DraftWindowScale * 100)}%";
+    public string DraftCompactWidthText => $"{DraftCompactWidth:0}";
+
     public string CompactWidthText => $"{CompactWidth:0}";
     public string WindowScalePercentText => $"{Math.Round(WindowScale * 100)}%";
 

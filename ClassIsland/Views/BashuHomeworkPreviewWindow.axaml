@@ -2,7 +2,7 @@
         xmlns:vm="clr-namespace:ClassIsland.ViewModels" x:Class="ClassIsland.Views.BashuHomeworkPreviewWindow"
         x:DataType="vm:BashuHomeworkPreviewViewModel" Title="班级作业"
         Width="520" Height="62" MinWidth="1" MinHeight="1" MaxWidth="1600"
-        Topmost="True" ShowInTaskbar="True" SystemDecorations="None" CanResize="False"
+        Topmost="{Binding IsPinned}" ShowInTaskbar="False" SystemDecorations="None" CanResize="False"
         Background="Transparent" TransparencyLevelHint="Transparent" FontFamily="Microsoft YaHei UI, PingFang SC, sans-serif"
         FontSize="{Binding TextSize}" WindowStartupLocation="Manual">
 
@@ -12,6 +12,7 @@
     <StreamGeometry x:Key="IconChevronUp">M13 11l-5-5-5 5</StreamGeometry>
     <StreamGeometry x:Key="IconClose">M13 3L3 13 M3 3l10 10</StreamGeometry>
     <StreamGeometry x:Key="IconSliders">M3 17v-4 M3 9V3 M10 21v-8 M10 9V3 M17 21v-4 M17 13V3 M1 13h4 M8 9h4 M15 17h4</StreamGeometry>
+    <StreamGeometry x:Key="IconPin">M5 2h10 M7 2v6l-3 4v2h12v-2l-3-4V2 M10 14v6</StreamGeometry>
     <StreamGeometry x:Key="IconClock">M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M10 5v5l3.5 2</StreamGeometry>
     <StreamGeometry x:Key="IconAlert">M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M10 7v4 M10 14h.01</StreamGeometry>
   </Window.Resources>
@@ -102,23 +103,29 @@
 
           <!-- 3. 右侧统一的极简无框矢量操作按钮组 -->
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <Button x:Name="CompactPinButton" Classes="icon-btn" Click="Pin_OnClick" ToolTip.Tip="{Binding PinActionText}" AutomationProperties.Name="{Binding PinActionText}">
+              <Path Data="{StaticResource IconPin}" Width="14" Height="17" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round" RenderTransformOrigin="50%,50%">
+                <Path.RenderTransform><RotateTransform Angle="{Binding PinAngle}"/></Path.RenderTransform>
+              </Path>
+            </Button>
             <!-- 大小调节图标按钮 -->
             <Button x:Name="CompactSettingsButton" Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" VerticalAlignment="Center" AutomationProperties.Name="调节悬浮窗大小">
               <Path Data="{StaticResource IconSliders}" Width="13" Height="13" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.5" StrokeLineCap="Round"/>
               <Button.Flyout>
-                <Flyout Placement="Bottom">
+                <Flyout Placement="Bottom" Opened="DisplaySettings_OnOpened" Closed="DisplaySettings_OnClosed">
                   <Border Padding="12,10" Background="White" CornerRadius="8" BorderBrush="#D8E6DF" BorderThickness="1">
                     <StackPanel Spacing="8" Width="180">
                       <TextBlock Text="内容缩放" FontWeight="Bold" FontSize="12" Foreground="#1A3830"/>
                       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <Slider Minimum="0.75" Maximum="1.5" Value="{Binding WindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="{Binding WindowScalePercentText}" FontSize="12" VerticalAlignment="Center"/>
+                        <Slider Minimum="0.75" Maximum="1.5" Value="{Binding DraftWindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="{Binding DraftWindowScaleText}" FontSize="12" VerticalAlignment="Center"/>
                       </Grid>
                         <TextBlock Text="胶囊宽度" FontSize="12" Foreground="#1A3830"/>
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                          <Slider Minimum="320" Maximum="960" Value="{Binding CompactWidth, Mode=TwoWay}" VerticalAlignment="Center"/>
-                          <TextBlock Grid.Column="1" Text="{Binding CompactWidthText}" FontSize="12" VerticalAlignment="Center"/>
+                          <Slider Minimum="320" Maximum="960" Value="{Binding DraftCompactWidth, Mode=TwoWay}" VerticalAlignment="Center"/>
+                          <TextBlock Grid.Column="1" Text="{Binding DraftCompactWidthText}" FontSize="12" VerticalAlignment="Center"/>
                         </Grid>
+                        <TextBlock Text="关闭面板后应用" FontSize="11" Foreground="#788F88"/>
                     </StackPanel>
                   </Border>
                 </Flyout>
@@ -160,23 +167,29 @@
 
               <!-- 右侧全图标按钮组 -->
               <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <Button x:Name="ExpandedPinButton" Classes="icon-btn" Click="Pin_OnClick" ToolTip.Tip="{Binding PinActionText}" AutomationProperties.Name="{Binding PinActionText}">
+                  <Path Data="{StaticResource IconPin}" Width="14" Height="17" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.5" StrokeLineCap="Round" StrokeJoin="Round" RenderTransformOrigin="50%,50%">
+                    <Path.RenderTransform><RotateTransform Angle="{Binding PinAngle}"/></Path.RenderTransform>
+                  </Path>
+                </Button>
                 <!-- 大小调节图标按钮 -->
-                <Button Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" AutomationProperties.Name="调节悬浮窗大小">
+                <Button x:Name="ExpandedSettingsButton" Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" AutomationProperties.Name="调节悬浮窗大小">
                   <Path Data="{StaticResource IconSliders}" Width="13" Height="13" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.5" StrokeLineCap="Round"/>
                   <Button.Flyout>
-                    <Flyout Placement="Bottom">
+                    <Flyout Placement="Bottom" Opened="DisplaySettings_OnOpened" Closed="DisplaySettings_OnClosed">
                       <Border Padding="12,10" Background="White" CornerRadius="8" BorderBrush="#D8E6DF" BorderThickness="1">
                         <StackPanel Spacing="8" Width="180">
                           <TextBlock Text="内容缩放" FontWeight="Bold" FontSize="12" Foreground="#1A3830"/>
                           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <Slider Minimum="0.75" Maximum="1.5" Value="{Binding WindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="1" Text="{Binding WindowScalePercentText}" FontSize="12" VerticalAlignment="Center"/>
+                            <Slider Minimum="0.75" Maximum="1.5" Value="{Binding DraftWindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding DraftWindowScaleText}" FontSize="12" VerticalAlignment="Center"/>
                           </Grid>
                           <TextBlock Text="胶囊宽度" FontSize="12" Foreground="#1A3830"/>
                           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <Slider Minimum="320" Maximum="960" Value="{Binding CompactWidth, Mode=TwoWay}" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="1" Text="{Binding CompactWidthText}" FontSize="12" VerticalAlignment="Center"/>
+                            <Slider Minimum="320" Maximum="960" Value="{Binding DraftCompactWidth, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding DraftCompactWidthText}" FontSize="12" VerticalAlignment="Center"/>
                           </Grid>
+                          <TextBlock Text="关闭面板后应用" FontSize="11" Foreground="#788F88"/>
                         </StackPanel>
                       </Border>
                     </Flyout>

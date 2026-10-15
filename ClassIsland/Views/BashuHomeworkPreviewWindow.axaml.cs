@@ -65,6 +65,8 @@ public partial class BashuHomeworkPreviewWindow : Window
     private readonly string _statePath;
     private readonly BashuHomeworkWindowState _windowState;
     private bool _isOpened;
+    private bool _isClosing;
+    private bool _applyingDisplaySettings;
     private IPointer? _dragPointer;
     private PixelPoint _dragStartPointer;
     private PixelPoint _dragStartPosition;
@@ -96,6 +98,7 @@ public partial class BashuHomeworkPreviewWindow : Window
         _windowState.Normalize();
         ViewModel.WindowScale = _windowState.WindowScale;
         ViewModel.CompactWidth = _windowState.CompactWidth;
+        ViewModel.IsPinned = _windowState.IsPinned;
         DataContext = ViewModel;
         Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
         _tickerTimer.Tick += (_, _) => TickCompact();
@@ -111,7 +114,11 @@ public partial class BashuHomeworkPreviewWindow : Window
             if (!ViewModel.Expanded) _tickerTimer.Start();
         };
         Screens.Changed += Screens_OnChanged;
-        Closing += (_, _) => FinishDrag();
+        Closing += (_, _) =>
+        {
+            _isClosing = true;
+            FinishDrag();
+        };
         Closed += (_, _) =>
         {
             SaveWindowState();
@@ -154,7 +161,7 @@ public partial class BashuHomeworkPreviewWindow : Window
 
     private void Screens_OnChanged(object? sender, EventArgs e)
     {
-        if (_isOpened) FitScreen(true);
+        if (_isOpened && !_isClosing) FitScreen(true);
     }
 
     private void SaveWindowState()
@@ -163,6 +170,7 @@ public partial class BashuHomeworkPreviewWindow : Window
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_statePath)!);
+            _windowState.IsPinned = ViewModel.IsPinned;
             _windowState.WindowScale = ViewModel.WindowScale;
             _windowState.CompactWidth = ViewModel.CompactWidth;
             ConfigureFileHelper.SaveConfig(_statePath, _windowState);
@@ -233,10 +241,37 @@ public partial class BashuHomeworkPreviewWindow : Window
         FitScreen();
     }
 
+    private void Pin_OnClick(object? sender, RoutedEventArgs e) => ViewModel.IsPinned = !ViewModel.IsPinned;
+
+    private void DisplaySettings_OnOpened(object? sender, EventArgs e)
+    {
+        ViewModel.DraftWindowScale = ViewModel.WindowScale;
+        ViewModel.DraftCompactWidth = ViewModel.CompactWidth;
+    }
+
+    private void DisplaySettings_OnClosed(object? sender, EventArgs e)
+    {
+        _applyingDisplaySettings = true;
+        try
+        {
+            ViewModel.WindowScale = ViewModel.DraftWindowScale;
+            ViewModel.CompactWidth = ViewModel.DraftCompactWidth;
+        }
+        finally { _applyingDisplaySettings = false; }
+        if (_isOpened && !_isClosing) FitScreen();
+        SaveWindowState();
+    }
+
     private void ViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(ViewModel.IsPinned))
+        {
+            SaveWindowState();
+            return;
+        }
         if (e.PropertyName is nameof(ViewModel.WindowScale) or nameof(ViewModel.CompactWidth))
         {
+            if (_applyingDisplaySettings) return;
             if (_isOpened) FitScreen();
             SaveWindowState();
             return;

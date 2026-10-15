@@ -4,6 +4,7 @@ namespace ClassIsland.Models;
 
 public sealed class BashuHomeworkWindowState
 {
+    public bool IsPinned { get; set; } = true;
     public double WindowScale { get; set; } = 1;
     public double CompactWidth { get; set; } = 520;
     public string? ScreenName { get; set; }
