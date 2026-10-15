@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="11.3.17" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.17" />
+    <PackageReference Include="FluentAvaloniaUI" Version="2.4.1" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.1" />
+    <ProjectReference Include="../../ClassIsland.Shared/ClassIsland.Shared.csproj" />
+    <Compile Include="../../ClassIsland/Views/BashuHomeworkPreviewWindow.axaml.cs" Link="BashuHomeworkPreviewWindow.axaml.cs" />
+    <Compile Include="../../ClassIsland/ViewModels/BashuHomeworkPreviewViewModel.cs" Link="BashuHomeworkPreviewViewModel.cs" />
+    <Compile Include="../../ClassIsland/Models/BashuHomeworkWindowState.cs" Link="BashuHomeworkWindowState.cs" />
+    <AvaloniaResource Include="../../ClassIsland/Views/BashuHomeworkPreviewWindow.axaml" Link="BashuHomeworkPreviewWindow.axaml" />
+  </ItemGroup>
+</Project>

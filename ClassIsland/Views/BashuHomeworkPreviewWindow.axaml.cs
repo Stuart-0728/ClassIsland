@@ -1,5 +1,10 @@
 using System;
 using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using ClassIsland.Core;
+using ClassIsland.Models;
+using ClassIsland.Shared.Helpers;
 using System.Diagnostics;
 using Avalonia.Threading;
 using Avalonia;
@@ -57,128 +62,183 @@ public partial class BashuHomeworkPreviewWindow : Window
     {
         _liveInstance?.Close(); _liveInstance = null; _latest = null; _closedRevision = null;
     }
-    private const double BaseCompactHeight = 54;
-    private const double BaseCompactWidth = 360;
-    private const double BaseExpandedHeight = 640;
-    private const double BaseExpandedWidth = 440;
-
-    private double CompactHeight => BaseCompactHeight * ViewModel.WindowScale;
-    private double CompactWidth => BaseCompactWidth * ViewModel.WindowScale;
-    private double ExpandedHeight => BaseExpandedHeight * ViewModel.WindowScale;
-    private double ExpandedWidth => BaseExpandedWidth * ViewModel.WindowScale;
+    private readonly string _statePath;
+    private readonly BashuHomeworkWindowState _windowState;
+    private bool _isOpened;
+    private IPointer? _dragPointer;
+    private PixelPoint _dragStartPointer;
+    private PixelPoint _dragStartPosition;
+    private bool _dragMoved;
 
     private readonly DispatcherTimer _tickerTimer = new() { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly Stopwatch _tickerClock = new();
     private double _tickerSeconds;
     public BashuHomeworkPreviewViewModel ViewModel { get; } = new();
-    public BashuHomeworkPreviewWindow()
+    public BashuHomeworkPreviewWindow() : this(Path.Combine(CommonDirectories.AppDataFolderPath, "BashuHomeworkWindow.json"))
     {
-        try
-        {
-            var mgmt = App.GetService<ClassIsland.Core.Abstractions.Services.Management.IManagementService>();
-            if (mgmt?.Settings?.BashuHomeworkWindowScale is > 0.5 and < 2.0)
-            {
-                ViewModel.WindowScale = mgmt.Settings.BashuHomeworkWindowScale;
-            }
-        }
-        catch { }
+    }
 
-        DataContext = ViewModel;
-        Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
-        if (!ViewModel.Expanded)
-        {
-            Width = CompactWidth;
-            Height = CompactHeight;
-            CanResize = false;
-            MinHeight = 44;
-        }
-        _tickerTimer.Tick += (_, _) => TickCompact();
-        ViewModel.PropertyChanged += ViewModel_OnPropertyChanged;
-        Opened += (_, _) => FitScreen();
-        Closed += (_, _) =>
-        {
-            _tickerTimer.Stop();
-            _tickerClock.Stop();
-            ViewModel.PropertyChanged -= ViewModel_OnPropertyChanged;
-        };
-    }
-    public static void ShowPreview()
+    internal BashuHomeworkPreviewWindow(string statePath)
     {
-        OpenLive();
-    }
-    private void FitScreen()
-    {
-        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
-        if (screen == null) return;
-        var scale = screen.Scaling;
-        if (!ViewModel.Expanded)
-        {
-            CanResize = false;
-            Width = CompactWidth;
-            Height = CompactHeight;
-            MinHeight = 44;
-        }
-        else
-        {
-            CanResize = true;
-            Width = Math.Min(ExpandedWidth, screen.WorkingArea.Width / scale - 24);
-            Height = Math.Min(ExpandedHeight, screen.WorkingArea.Height / scale - 24);
-        }
-        Position = new PixelPoint(screen.WorkingArea.Right - (int)(Width * scale) - 16, screen.WorkingArea.Y + 16);
-    }
-    private void Header_OnPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        // Header buttons must keep their click instead of starting a window drag.
-        if (e.Source is Visual visual && (visual is Button || visual.FindAncestorOfType<Button>() != null)) return;
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e);
-    }
-    private void Fold_OnClick(object? sender, RoutedEventArgs e)
-    {
-        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
-        var scale = screen?.Scaling ?? 1;
-        var right = Position.X + (int)(Width * scale);
-        if (ViewModel.Expanded)
-        {
-            ViewModel.Expanded = false;
-            CanResize = false;
-            MinHeight = 44;
-            Width = CompactWidth;
-            Height = CompactHeight;
-        }
-        else
-        {
-            ViewModel.Expanded = true;
-            CanResize = true;
-            MinHeight = 280;
-            Width = ExpandedWidth;
-            Height = ExpandedHeight;
-        }
-        // Keep the right edge anchored, including after dragging the folded reminder.
-        var x = right - (int)(Width * scale);
-        var y = Position.Y;
-        if (screen != null)
-        {
-            Width = Math.Min(Width, screen.WorkingArea.Width / scale - 24);
-            Height = Math.Min(Height, screen.WorkingArea.Height / scale - 24);
-            x = Math.Clamp(x, screen.WorkingArea.X, Math.Max(screen.WorkingArea.X, screen.WorkingArea.Right - (int)(Width * scale)));
-            y = Math.Clamp(y, screen.WorkingArea.Y, Math.Max(screen.WorkingArea.Y, screen.WorkingArea.Bottom - (int)(Height * scale)));
-        }
-        Position = new PixelPoint(x, y);
-    }
-    private void ViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(ViewModel.WindowScale))
+        _statePath = statePath;
+        _windowState = File.Exists(statePath)
+            ? ConfigureFileHelper.LoadConfig<BashuHomeworkWindowState>(statePath)
+            : new BashuHomeworkWindowState();
+        if (!File.Exists(statePath))
         {
             try
             {
-                var mgmt = App.GetService<ClassIsland.Core.Abstractions.Services.Management.IManagementService>();
-                if (mgmt?.Settings != null)
-                {
-                    mgmt.Settings.BashuHomeworkWindowScale = ViewModel.WindowScale;
-                }
+                _windowState.WindowScale = App.GetService<ClassIsland.Core.Abstractions.Services.Management.IManagementService>()
+                    .Settings.BashuHomeworkWindowScale;
             }
-            catch { }
-            FitScreen();
+            catch { /* Standalone previews do not load classroom management services. */ }
+        }
+        _windowState.Normalize();
+        ViewModel.WindowScale = _windowState.WindowScale;
+        ViewModel.CompactWidth = _windowState.CompactWidth;
+        DataContext = ViewModel;
+        Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
+        _tickerTimer.Tick += (_, _) => TickCompact();
+        ViewModel.PropertyChanged += ViewModel_OnPropertyChanged;
+        PointerMoved += Window_OnPointerMoved;
+        PointerReleased += Window_OnPointerReleased;
+        PointerCaptureLost += Window_OnPointerCaptureLost;
+        Opened += (_, _) =>
+        {
+            FitScreen(true);
+            _isOpened = true;
+            _tickerClock.Restart();
+            if (!ViewModel.Expanded) _tickerTimer.Start();
+        };
+        Screens.Changed += Screens_OnChanged;
+        Closing += (_, _) => FinishDrag();
+        Closed += (_, _) =>
+        {
+            SaveWindowState();
+            _tickerTimer.Stop();
+            _tickerClock.Stop();
+            Screens.Changed -= Screens_OnChanged;
+            ViewModel.PropertyChanged -= ViewModel_OnPropertyChanged;
+        };
+    }
+    public static void ShowPreview() => OpenLive();
+
+    private Avalonia.Platform.Screen? SelectScreen(bool restore)
+    {
+        if (restore && _windowState.HasPosition)
+        {
+            return Screens.All.FirstOrDefault(x => !string.IsNullOrEmpty(_windowState.ScreenName) && x.DisplayName == _windowState.ScreenName)
+                ?? Screens.All.FirstOrDefault(x => x.WorkingArea.X == _windowState.ScreenX && x.WorkingArea.Y == _windowState.ScreenY)
+                ?? Screens.Primary;
+        }
+        return Screens.ScreenFromWindow(this) ?? Screens.Primary;
+    }
+
+    private void FitScreen(bool restore = false)
+    {
+        var screen = SelectScreen(restore);
+        if (screen == null) return;
+        var scale = screen.Scaling;
+        var area = screen.WorkingArea;
+        _windowState.WindowScale = ViewModel.WindowScale;
+        _windowState.CompactWidth = ViewModel.CompactWidth;
+        var (width, height) = _windowState.GetSize(ViewModel.Expanded, area.Width / scale, area.Height / scale);
+        MinWidth = Math.Min(320, Math.Max(1, area.Width / scale - 24));
+        MinHeight = ViewModel.Expanded ? Math.Min(280, Math.Max(1, area.Height / scale - 24)) : 1;
+        CanResize = ViewModel.Expanded;
+        Width = width;
+        Height = height;
+        var (left, top) = _windowState.GetPosition(width, height, area.Width / scale, area.Height / scale);
+        Position = new PixelPoint(area.X + (int)Math.Round(left * scale), area.Y + (int)Math.Round(top * scale));
+    }
+
+    private void Screens_OnChanged(object? sender, EventArgs e)
+    {
+        if (_isOpened) FitScreen(true);
+    }
+
+    private void SaveWindowState()
+    {
+        if (!_isOpened) return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_statePath)!);
+            _windowState.WindowScale = ViewModel.WindowScale;
+            _windowState.CompactWidth = ViewModel.CompactWidth;
+            ConfigureFileHelper.SaveConfig(_statePath, _windowState);
+        }
+        catch (Exception ex) { Trace.TraceWarning("Unable to save homework window placement: {0}", ex.Message); }
+    }
+
+    private void Header_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_dragPointer != null) return;
+        if (e.Source is Visual visual && (visual is Button || visual.FindAncestorOfType<Button>() != null)) return;
+        if (e.Pointer.Type == PointerType.Mouse && !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        _dragPointer = e.Pointer;
+        _dragStartPointer = this.PointToScreen(e.GetPosition(this));
+        _dragStartPosition = Position;
+        _dragMoved = false;
+        e.Pointer.Capture(this);
+        e.Handled = true;
+    }
+
+    private void Window_OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (e.Pointer != _dragPointer) return;
+        var point = this.PointToScreen(e.GetPosition(this));
+        var dx = point.X - _dragStartPointer.X;
+        var dy = point.Y - _dragStartPointer.Y;
+        if (!_dragMoved && Math.Abs(dx) + Math.Abs(dy) < 4 * RenderScaling) return;
+        _dragMoved = true;
+        Position = new PixelPoint(_dragStartPosition.X + dx, _dragStartPosition.Y + dy);
+        e.Handled = true;
+    }
+
+    private void Window_OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.Pointer != _dragPointer) return;
+        FinishDrag();
+        e.Handled = true;
+    }
+
+    private void Window_OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (e.Pointer == _dragPointer) FinishDrag();
+    }
+
+    private void FinishDrag()
+    {
+        var pointer = _dragPointer;
+        if (pointer == null) return;
+        _dragPointer = null;
+        pointer.Capture(null);
+        if (!_dragMoved) return;
+        _dragMoved = false;
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        if (screen == null) return;
+        _windowState.ScreenName = screen.DisplayName;
+        _windowState.ScreenX = screen.WorkingArea.X;
+        _windowState.ScreenY = screen.WorkingArea.Y;
+        _windowState.HasPosition = true;
+        _windowState.RightInset = Math.Max(0, (screen.WorkingArea.Right - Position.X) / screen.Scaling - Width);
+        _windowState.TopInset = Math.Max(0, (Position.Y - screen.WorkingArea.Y) / screen.Scaling);
+        FitScreen();
+        SaveWindowState();
+    }
+
+    private void Fold_OnClick(object? sender, RoutedEventArgs e)
+    {
+        ViewModel.Expanded = !ViewModel.Expanded;
+        FitScreen();
+    }
+
+    private void ViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ViewModel.WindowScale) or nameof(ViewModel.CompactWidth))
+        {
+            if (_isOpened) FitScreen();
+            SaveWindowState();
             return;
         }
         if (e.PropertyName is not (nameof(ViewModel.Expanded) or nameof(ViewModel.CompactText))) return;

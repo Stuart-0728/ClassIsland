@@ -36,3 +36,29 @@ ticker.AdvanceCompactCard(); Check(ticker.CompactText.Contains("数学"), "folde
 ticker.ShowNames = false; Check(!ticker.CompactText.Contains("示例同学"), "folded ticker respects name visibility and resets on update");
 ticker.ApplySnapshot(new BashuHomeworkSnapshot { SchemaVersion=1, Revision="empty" }); ticker.AdvanceCompactCard();
 Check(ticker.CompactText == "暂无待展示作业", "empty folded ticker clears stale work safely");
+
+var placement = new ClassIsland.Models.BashuHomeworkWindowState { CompactWidth = 640 };
+foreach(var scale in new[] {0.75,1.0,1.5})
+{
+    placement.WindowScale=scale;
+    var compact=placement.GetSize(false,1920,1080);
+    Check(compact.Width==640 && compact.Height==62*scale,"compact width stays independent at content scale "+scale);
+}
+placement.WindowScale=1;placement.RightInset=250;placement.TopInset=180;
+var beforePosition=placement.GetPosition(640,62,1920,1080);
+var restored=System.Text.Json.JsonSerializer.Deserialize<ClassIsland.Models.BashuHomeworkWindowState>(System.Text.Json.JsonSerializer.Serialize(placement))!;
+Check(restored.GetPosition(640,62,1920,1080)==beforePosition,"saved placement survives restart");
+var widerPosition=placement.GetPosition(800,62,1920,1080);
+Check(widerPosition.Left+800==beforePosition.Left+640 && widerPosition.Top==beforePosition.Top,"width adjustment preserves top and right anchor");
+placement.TopInset=1000;
+var expandedPosition=placement.GetPosition(440,640,1920,1080);
+var foldedPosition=placement.GetPosition(640,62,1920,1080);
+Check(expandedPosition.Top==440 && foldedPosition.Top==1000,"temporary expanded-screen clamp does not lose folded placement");
+placement.RightInset=3000;placement.TopInset=3000;
+var constrainedSize=placement.GetSize(false,800,600);
+var constrained=placement.GetPosition(constrainedSize.Width,constrainedSize.Height,800,600);
+Check(constrained.Left>=0 && constrained.Top+constrainedSize.Height<=600,"changed monitor keeps the whole capsule visible");
+placement.WindowScale=double.NaN;placement.CompactWidth=double.PositiveInfinity;placement.RightInset=double.NaN;placement.Normalize();
+Check(placement.WindowScale==1 && placement.CompactWidth==520 && placement.RightInset==16,"invalid saved geometry falls back safely");
+vm.CompactWidth=720;vm.WindowScale=1.4;
+Check(vm.CompactWidth==720,"view model does not scale capsule width with content");

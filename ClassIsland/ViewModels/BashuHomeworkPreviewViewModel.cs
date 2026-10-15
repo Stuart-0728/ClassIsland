@@ -31,6 +31,7 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
         get => _windowScale;
         set
         {
+            if (!double.IsFinite(value)) return;
             var clamped = Math.Clamp(Math.Round(value, 2), 0.75, 1.5);
             if (Math.Abs(clamped - _windowScale) < 0.001) return;
             if (SetProperty(ref _windowScale, clamped))
@@ -39,6 +40,18 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
             }
         }
     }
+    private double _compactWidth = 520;
+    public double CompactWidth
+    {
+        get => _compactWidth;
+        set
+        {
+            if (!double.IsFinite(value)) return;
+            if (SetProperty(ref _compactWidth, Math.Clamp(Math.Round(value), 320, 960)))
+                OnPropertyChanged(nameof(CompactWidthText));
+        }
+    }
+    public string CompactWidthText => $"{CompactWidth:0}";
     public string WindowScalePercentText => $"{Math.Round(WindowScale * 100)}%";
 
     public BashuHomeworkPreviewCard? CurrentCard => Cards.Count == 0 ? null : Cards[_compactIndex % Cards.Count];

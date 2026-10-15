@@ -1,10 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:ClassIsland.ViewModels" x:Class="ClassIsland.Views.BashuHomeworkPreviewWindow"
         x:DataType="vm:BashuHomeworkPreviewViewModel" Title="班级作业"
-        Width="360" Height="54" MinWidth="240" MinHeight="44" MaxWidth="900"
+        Width="520" Height="62" MinWidth="1" MinHeight="1" MaxWidth="1600"
         Topmost="True" ShowInTaskbar="True" SystemDecorations="None" CanResize="False"
         Background="Transparent" TransparencyLevelHint="Transparent" FontFamily="Microsoft YaHei UI, PingFang SC, sans-serif"
-        FontSize="{Binding TextSize}" WindowStartupLocation="CenterScreen">
+        FontSize="{Binding TextSize}" WindowStartupLocation="Manual">
 
   <Window.Resources>
     <!-- 极简现代几何矢量 Path（纯矢量无任何 emoji） -->
@@ -22,8 +22,8 @@
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Foreground" Value="#556E66"/>
-      <Setter Property="Width" Value="26"/>
-      <Setter Property="Height" Value="26"/>
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="34"/>
       <Setter Property="Padding" Value="5"/>
       <Setter Property="CornerRadius" Value="6"/>
       <Setter Property="Cursor" Value="Hand"/>
@@ -39,8 +39,8 @@
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Foreground" Value="#6B7E78"/>
-      <Setter Property="Width" Value="26"/>
-      <Setter Property="Height" Value="26"/>
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="34"/>
       <Setter Property="Padding" Value="6"/>
       <Setter Property="CornerRadius" Value="6"/>
       <Setter Property="Cursor" Value="Hand"/>
@@ -63,10 +63,10 @@
     </LayoutTransformControl.LayoutTransform>
     <Grid>
       <!-- 收起态：纯粹精致胶囊卡片（零白边、上下边距精准对称） -->
-      <Border IsVisible="{Binding !Expanded}" Margin="4" CornerRadius="12" Background="#FFFFFF"
+      <Border x:Name="CompactHeader" IsVisible="{Binding !Expanded}" Margin="4" CornerRadius="12" Background="#FFFFFF"
               BorderBrush="#D5E4DE" BorderThickness="1"
               BoxShadow="0 4 14 0 #140A3024, 0 1 3 0 #08000000"
-              Padding="11,6" VerticalAlignment="Center" PointerPressed="Header_OnPointerPressed">
+              Padding="11,6" VerticalAlignment="Center" PointerPressed="Header_OnPointerPressed" Cursor="SizeAll">
         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="9" VerticalAlignment="Center">
           <!-- 1. 标志性绿色微光渐变竖线（纯粹优雅，绝无杂质） -->
           <Border Width="3.5" Height="24" CornerRadius="2" VerticalAlignment="Center">
@@ -103,17 +103,22 @@
           <!-- 3. 右侧统一的极简无框矢量操作按钮组 -->
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
             <!-- 大小调节图标按钮 -->
-            <Button Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" VerticalAlignment="Center" AutomationProperties.Name="调节悬浮窗大小">
+            <Button x:Name="CompactSettingsButton" Classes="icon-btn" ToolTip.Tip="调节悬浮窗大小" VerticalAlignment="Center" AutomationProperties.Name="调节悬浮窗大小">
               <Path Data="{StaticResource IconSliders}" Width="13" Height="13" Stretch="Uniform" Stroke="#556E66" StrokeThickness="1.5" StrokeLineCap="Round"/>
               <Button.Flyout>
                 <Flyout Placement="Bottom">
                   <Border Padding="12,10" Background="White" CornerRadius="8" BorderBrush="#D8E6DF" BorderThickness="1">
                     <StackPanel Spacing="8" Width="180">
-                      <TextBlock Text="悬浮窗大小缩放" FontWeight="Bold" FontSize="12" Foreground="#1A3830"/>
+                      <TextBlock Text="内容缩放" FontWeight="Bold" FontSize="12" Foreground="#1A3830"/>
                       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <Slider Minimum="0.8" Maximum="1.4" Value="{Binding WindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
+                        <Slider Minimum="0.75" Maximum="1.5" Value="{Binding WindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1" Text="{Binding WindowScalePercentText}" FontSize="12" VerticalAlignment="Center"/>
                       </Grid>
+                        <TextBlock Text="胶囊宽度" FontSize="12" Foreground="#1A3830"/>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                          <Slider Minimum="320" Maximum="960" Value="{Binding CompactWidth, Mode=TwoWay}" VerticalAlignment="Center"/>
+                          <TextBlock Grid.Column="1" Text="{Binding CompactWidthText}" FontSize="12" VerticalAlignment="Center"/>
+                        </Grid>
                     </StackPanel>
                   </Border>
                 </Flyout>
@@ -134,7 +139,7 @@
               BoxShadow="0 8 24 0 #180A3024, 0 2 6 0 #08000000" ClipToBounds="True">
         <Grid RowDefinitions="Auto,*">
           <!-- 标题栏 -->
-          <Border Padding="14,10" Background="White" BorderBrush="#E4ECE8" BorderThickness="0,0,0,1" PointerPressed="Header_OnPointerPressed">
+          <Border x:Name="ExpandedHeader" Padding="14,10" Background="White" BorderBrush="#E4ECE8" BorderThickness="0,0,0,1" PointerPressed="Header_OnPointerPressed" Cursor="SizeAll">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" VerticalAlignment="Center">
               <!-- 绿色的渐变竖线 -->
               <Border Width="3.5" Height="28" CornerRadius="2" VerticalAlignment="Center">
@@ -162,10 +167,15 @@
                     <Flyout Placement="Bottom">
                       <Border Padding="12,10" Background="White" CornerRadius="8" BorderBrush="#D8E6DF" BorderThickness="1">
                         <StackPanel Spacing="8" Width="180">
-                          <TextBlock Text="悬浮窗大小缩放" FontWeight="Bold" FontSize="12" Foreground="#1A3830"/>
+                          <TextBlock Text="内容缩放" FontWeight="Bold" FontSize="12" Foreground="#1A3830"/>
                           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <Slider Minimum="0.8" Maximum="1.4" Value="{Binding WindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            <Slider Minimum="0.75" Maximum="1.5" Value="{Binding WindowScale, Mode=TwoWay}" VerticalAlignment="Center"/>
                             <TextBlock Grid.Column="1" Text="{Binding WindowScalePercentText}" FontSize="12" VerticalAlignment="Center"/>
+                          </Grid>
+                          <TextBlock Text="胶囊宽度" FontSize="12" Foreground="#1A3830"/>
+                          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Slider Minimum="320" Maximum="960" Value="{Binding CompactWidth, Mode=TwoWay}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding CompactWidthText}" FontSize="12" VerticalAlignment="Center"/>
                           </Grid>
                         </StackPanel>
                       </Border>
