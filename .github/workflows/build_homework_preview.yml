@@ -1,8 +1,6 @@
 name: Bashu Homework Preview
 on:
   workflow_dispatch:
-  push:
-    branches: [feat/bashu-homework-preview]
 permissions:
   contents: write
 jobs:

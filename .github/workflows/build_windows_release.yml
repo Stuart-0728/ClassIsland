@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.2.9-bashu'
+        default: 'v2.2.13'
         type: string
   push:
     branches:
@@ -30,7 +30,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.9-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.13' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -55,9 +55,18 @@ jobs:
       - name: Run platform synchronization regression tests
         shell: pwsh
         run: |
+          dotnet run --project tests/BashuSpeechProtocolSmoke/BashuSpeechProtocolSmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/BashuSpeechSmoke/BashuSpeechSmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project tests/BashuHomeworkPreviewSmoke/BashuHomeworkPreviewSmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/BashuPlatformSmoke/BashuPlatformSmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/NotificationPrioritySmoke/NotificationPrioritySmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project tests/BashuRtcSmoke/BashuRtcSmoke.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Generate Dummy Secrets File
         shell: pwsh
@@ -67,7 +76,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.12 -p:AssemblyVersion=2.2.12.0 -p:FileVersion=2.2.12.0 -p:ApplicationVersion=2.2.12 -p:ApplicationDisplayVersion=2.2.12 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.13 -p:AssemblyVersion=2.2.13.0 -p:FileVersion=2.2.13.0 -p:ApplicationVersion=2.2.13 -p:ApplicationDisplayVersion=2.2.13 -o ${{ github.workspace }}/out_publish
 
       - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
         shell: pwsh
@@ -104,9 +113,22 @@ jobs:
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.2.12.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.2.13.0") { throw "Unexpected application version: $version" }
           $fileVersion = (Get-Item "${{ github.workspace }}/out_publish/ClassIsland.dll").VersionInfo.FileVersion
-          if ($fileVersion -notlike "2.2.12.0*") { throw "Unexpected file version: $fileVersion" }
+          if ($fileVersion -notlike "2.2.13.0*") { throw "Unexpected file version: $fileVersion" }
+          Copy-Item LICENSE.txt "${{ github.workspace }}/out_publish/LICENSE.txt"
+          Copy-Item doc/BashuHomeworkPreviewRelease.md "${{ github.workspace }}/out_publish/README-2.2.13.md"
+          if ('${{ matrix.arch }}' -eq 'x64') {
+            $p = Start-Process "${{ github.workspace }}/out_publish/ClassIsland.exe" -ArgumentList '--bashu-homework-demo' -PassThru
+            Start-Sleep -Seconds 12
+            if ($p.HasExited) { throw "Application exited unexpectedly: $($p.ExitCode)" }
+            $p.Refresh()
+            if ($p.MainWindowHandle -eq 0) { throw 'Application did not create a native window' }
+            $p.CloseMainWindow() | Out-Null
+            if (-not $p.WaitForExit(10000)) { $p.Kill(); throw 'Application did not close cleanly' }
+            if ($p.ExitCode -ne 0) { throw "Application failed on close: $($p.ExitCode)" }
+          }
+
 
       - name: Prepare Installer Output Directory
         shell: pwsh
@@ -119,7 +141,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.2.9
+            /DAppVersion=2.2.13
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -148,8 +170,9 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.9-bashu' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.13' }}
     steps:
+      - uses: actions/checkout@v4
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -183,75 +206,8 @@ jobs:
           name: "ClassIsland 智慧教研版 ${{ env.TAG_NAME }}"
           draft: false
           prerelease: false
-          body: |
-            ## ClassIsland 智慧教研版（Windows x64 与 ARM64 双架构发布）
-
-            本版本基于 ClassIsland 官方 Avalonia 原生客户端深度定制，专为两江巴蜀智慧校园环境打造。
-
-            ### 核心更新与修复 (v2.2.9)
-            - **彻底根除对讲结束后完整录音重播问题（端云协同双重防重播机制）：** 服务端在下发 HTTP 轮询切片时新增 WebSocket 下发水印过滤（wsDeviceCutoffs），与 WebRTC 水印无缝合并在数据库 SQL 层面精准排除大屏已收听的会话数据；同时客户端新增已收听会话历史登记（HasReceivedSession）与即时回执拦截，即使弱网或乱序重试也绝不重复播放。
-            - **彻底修复对讲结束后讲话横条与倒计时进度条悬挂不消失问题：** 在客户端音频播放队列全部消费完毕后，即时注销灵动岛通知卡片（IntercomNotification.Cancel()）；同时在 WebSocket 通道中引入 3.0 秒静音超时看门狗，避免弱网下结束指令丢包导致大屏界面一直显示“正在讲话”及 20 分钟倒计时进度条。
-            - **版本基线升级：** 程序集与安装包统一升级为 2.2.9 / v2.2.9-bashu。
-
-            ### 核心更新与修复 (v2.2.8)
-            - **原生全双工 WebSocket 对讲引擎与零卡顿流式播放：** 客户端深度内置专属 ClientWebSocket 全双工对讲接收通道（BashuWsReceiver）与无缝重采样音频环形缓冲区（BashuWsAudioBuffer）。直接监听平台实时语音推流，实现毫秒级即按即达直通播放，从根源上彻底解决第 1-2 秒因固定 HTTP 轮询间隔产生的 200~300ms 声卡断流空白与卡顿。
-            - **低延迟防累积削峰锁死机制：** 音频缓冲区设立 80ms 抗抖动起播门控，并将未播放语音最大积压上限严格锁死在 500ms 内。长时间连续说话时自动平滑跳过超量积压帧，彻底根治对讲延迟随时间累积的问题。
-            - **HTTP 轮询自适应防饥饿动态加速（双通道容灾保障）：** 在 WebSocket 建立中或弱网回退到兼容轮询时，检测到对讲活动后轮询周期自适应由 1000ms 动态极速加速至 250ms，配合服务端的 500ms 切片平滑对齐，消除传统轮询饥饿缝隙。
-            - **版本基线升级：** 程序集与安装包统一升级为 2.2.8 / v2.2.8-bashu。
-
-            ### 核心更新与修复 (v2.2.7)
-            - **彻底消除对讲音频“PPT式卡顿”与断音：** 重构客户端音频队列播放引擎，新增动态 PCM WAV 无缝拼接引擎。大屏在消费轮询切片时，自动扫描并合并同一对讲会话后续全部音频片段，拼接为单个标准线性 PCM WAV 音频流进行单次连续播放，彻底根除因频繁启停播放器导致的系统级静音间隙与杂音爆音。
-            - **端云双重防卡顿保护：** 配合智慧教研平台服务端微小音频帧智能聚合机制（~750ms-1000ms 规整块），消除网络微帧碎片，实现对讲语音即按即播、流畅无缝。
-            - **版本基线升级：** 程序集与安装包统一升级为 2.2.7 / v2.2.7-bashu。
-
-            ### 核心更新与修复 (v2.2.6)
-            - **全面支持微信小程序流式对讲：** 深度适配微信小程序全双工对讲通道，服务端实时推流落库，客户端轮询毫秒级感知，打通小程序移动端直达教室大屏的高效双向语音通道。
-            - **对讲音频零二次往返直连播放（Zero-Roundtrip）：** 客户端轮询响应直接内联音频 Base64 数据并即时解码播放，彻底消除以往接收到对讲通知后再发起二次 HTTP 请求下载音频片段的网络开销与等待前摇，音画毫秒级即刻同步。
-            - **安全与稳定性维护：** 同步智慧教研平台最新音频帧流控与鉴权机制，优化极端弱网下的异常帧防御机制与错误自愈策略。
-            - **安全维护与兼容打包：** 客户端按 2.2.6 版本重新生成 x64、ARM64 安装包与便携包；升级安装保留原有班级绑定、课表、天气、通知、语音和对讲设置。
-            - **保留 5 秒醒目遮罩动画且第 0 毫秒同步发声：** 保留灵动岛大胶囊 5 秒遮罩入场展示动效，同时彻底打破过去等 5 秒动画放完才出声的串行阻塞，声音在动画弹出的第 1 瞬间同步开播，画面展开与声音完全并发。
-            - **实时音频缓冲区零丢帧防吞字：** 优化对讲首包进入缓冲区的门控判定，在排队入场与播放阶段持续使能缓冲，杜绝开播前摇吃字与断续卡顿。
-            - **默认开机自启动支持：** 安装包默认在 Windows 启动项（`userstartup`）写入快捷方式，无需手动配置即可实现开机自动拉起并上线。
-            - **已绑定大屏开机自愈保活：** 大屏只要处于已配对绑定班级状态，运行启动或后台连接平台时将自动检测并恢复自启动状态，彻底杜绝关机断电重启后大屏离线的问题。
-            - **全双工 WebSocket 流式对讲升级：** 全面对接两江巴蜀智慧教研平台 WebSocket 全双工流式对讲与低延迟播放缓冲机制，彻底消除传统兼容模式下的初始连接与播放卡顿，实现毫秒级即按即通。
-            - **版本基线与特供更新源同步：** 正式将智慧教研特供版升级至 2.2.6 基线，手动检查与后台检查统一显示特供版更新状态，不再出现系统通知提示有新版、设置页却显示最新的矛盾。
-            - **特供版更新通道锁定：** 内置检查更新只查询 `Stuart-0728/ClassIsland` 的智慧教研特供版，不再连接普通 ClassIsland 差分更新通道，也不会被普通版自动覆盖。
-            - **实时音频解码修复：** 根据现场日志修复偶发空帧或损坏 Opus 帧导致整个 WebRTC 会话退出的问题；异常帧会被安全丢弃，后续语音继续实时播放。
-            - **并发对讲仲裁：** 同一班级同时出现多个发言时只保留一个实时音频与灵动岛；紧急广播优先，普通广播不会抢占紧急广播。
-            - **可诊断日志：** 对讲失败会记录会话编号、真实异常消息和 Opus 错误码，便于现场精确排障。
-            - **实时对讲保活修复：** 修正原生 WebRTC 接收器默认 5 秒无网络活动即判为断开的问题，加入 2 秒 ICE 保活和校园网短暂抖动容忍。
-            - **移动端连接优化：** TURN 改为后备通道，同时保留局域网直连候选，避免手机被强制绑定到单一中继路径。
-            - **瞬时断网自愈：** 课表/通知轮询短暂失败不再关闭已连接的对讲，信令更新增加快速重试。
-            - **15 秒断流专项修复：** 平台不再反复重建浏览器录音器，TURN 支持 UDP 优先与 TCP 后备，避免候选路径切换导致实时音频中断。
-            - **对讲连接和延迟二次优化：** SDP 立即发送、ICE 候选增量传输，大屏以长轮询被新会话即时唤醒；起播缓冲降至 40ms，积压上限降至 120ms。
-            - **播报音量自动保障：** 平台通知、Edge TTS 语音和实时对讲开始时可自动解除静音并将 Windows 主音量提升到最大，全部结束后恢复播报前音量与静音状态。
-            - **年级独立作息同步：** 配套平台可为初一、初二、初三分别配置节次时间与星期特例，大屏按绑定班级年级自动同步。
-            - **对讲抗抖动与防断续算法重构：** 彻底重构 Jitter Buffer 动态平滑算法，解决网络偶发微小抖动时的缓冲饥饿震荡问题，消除机关枪式卡顿、断字与爆音。
-            - **毫秒级闪电握手：** 将 ICE 候选者收集超时从 8 秒缩短至 1 秒，老师按住说话 2~5 秒的简短通告也能在第 1~2 秒闪电进入超低延迟实时流。
-            - **网络抖动自愈容忍：** 优化连接状态监控，对公网瞬态 `disconnected` 赋予自愈宽限期，避免误判直接掐线。
-            - **支持 TCP 与 UDP 双 TURN 中继：** 自动探测并支持在校园网 UDP 受阻时，平滑回退走 TCP 3478 进行实时音频流穿透。
-            - **全屏强提醒模式（含语音朗读与触控确认）：** 针对重要集队、紧急广播与重要通告，班级大屏黑晶磨砂覆层全屏展示，伴随高保真语音播报，必须现场轻触“确认收到”方可关闭，防止信息遗漏。
-            - **确认回执与状态同步：** 现场点击确认后，自动清空多余语音朗读队列并实时上报回执，网页端与后台实时展示“已确认收到”时间。
-            - **WebRTC 原生实时对讲引擎集成：** 内置原生编译的 `BashuRtc.exe`（Windows x64 与 ARM64 原生二进制），打通与服务器 UDP 3478 / TURN 的实时语音流，支持毫秒级低延迟对讲。
-            - **双通道无缝容灾保护：** 实时 WebRTC 通道与 PCM WAV 兼容通道双轨并行；服务器配置 TURN 时固定使用稳定中继，实时链路异常时再切换至 WAV 兼容通道。
-            - **Windows 双架构原生支持：** 全面支持 Windows 64位（Intel/AMD）与 Windows ARM64（高通骁龙 X Elite / Surface Pro X 等设备）。
-            - **整周 7 天课表独立模型：** 支持周五提前放学等差异化作息，避免单日临时课表互相覆盖，北京时间午夜 0 点自动刷新今日课表；课间休息不偏移课程序号。
-            - **通知发出人与滚动时长智能估算：** 标题和正文显示教师姓名，按内容长度、标点停顿与重复次数智能估算展示时长，避免重复触发朗读或过早消失。
-            - **紧急通知优先级抢占与音频打断保护：** 当紧急广播到达时，即时静音并中断普通对讲音频，待紧急事项结束后安全恢复；回执不再阻塞下一段播放。
-            - **新安装默认配置：** 微软雅黑 + ExtraBlack，Edge TTS 和提示音开启；重庆天气；天气、日期、时间、课表布局，时间不闪烁且不显示秒。升级保留已保存设置。
-            - **极简配对体验：** 主岛与托盘菜单新增“绑定班级大屏”一键直达，预填平台地址，仅需输入 6 位配对码即可一键完成绑定。
-
-            ### 下载文件说明
-            - **Windows x64 一键安装版：** `ClassIsland-Teaching-Windows-x64-Setup.exe`
-            - **Windows x64 绿色便携版：** `ClassIsland-Teaching-Windows-x64-Portable.zip`
-            - **Windows ARM64 一键安装版：** `ClassIsland-Teaching-Windows-arm64-Setup.exe`
-            - **Windows ARM64 绿色便携版：** `ClassIsland-Teaching-Windows-arm64-Portable.zip`
-
-            ### 配套要求与验证边界
-            - 平台必须同步部署 `scheduleWeek`、通知 `created_by_name` 和 WAV 音频上传支持；教师需刷新网页后发起对讲。
-            - 微软雅黑使用 Windows 已安装字体；实际字重由系统字体支持决定，不附带商业字体文件。
-            - 已执行模型回归、双架构构建和 PE 架构校验（0x8664 / 0xAA64）；实际教室设备发声、窗口显示和线上联动仍需验收。
-            - 未进行代码签名，Windows 可能提示未知发布者；请核对 SHA256SUMS.txt。
+          make_latest: true
+          body_path: doc/BashuHomeworkPreviewRelease.md
           files: |
             ${{ github.workspace }}/release_files/*
           fail_on_unmatched_files: true
