@@ -30,7 +30,19 @@ try
     Check(JsonSerializer.Deserialize<BashuHomeworkWindowState>("{}")!.IsPinned,"existing preferences retain default topmost behavior");
     Check(window.Width==520 && window.Height==62,"compact window opens with wider readable viewport");
     Check(window.FindControl<Canvas>("CompactViewport")!.Bounds.Width>300,"compact text retains usable reading width");
+    Check(window.FindControl<TextBlock>("CompactHeading")!.Text == window.ViewModel.CurrentCard!.Heading,"actual compact heading includes subject and assignment title");
     Capture("compact-default");
+    var longTitle=string.Concat(Enumerable.Repeat("运动和物态变化专题复习",12));
+    window.ViewModel.ApplySnapshot(new ClassIsland.ViewModels.BashuHomeworkSnapshot { SchemaVersion=1, Revision="long-heading", ClassName="演示班级", Items=[new() {Id="title-test",Subject="物理",Title=longTitle,Content="完成课堂巩固练习",Checked=false,Total=48}] });
+    Layout();
+    foreach(var width in new[]{520,320})
+    {
+        window.ViewModel.CompactWidth=width;Layout();
+        var heading=window.FindControl<TextBlock>("CompactHeading")!;var badge=window.FindControl<Border>("CompactStatusBadge")!;
+        Check(heading.Text=="物理 · "+longTitle && heading.TextTrimming==Avalonia.Media.TextTrimming.CharacterEllipsis,"long heading keeps full text with ellipsis at width "+width);
+        Check(heading.Bounds.Right<=badge.Bounds.Left && badge.Bounds.Right<=((Control)badge.Parent!).Bounds.Width+1,"long heading does not push status outside its row at width "+width);
+    }
+    window.ViewModel.CompactWidth=520;Layout();Capture("compact-long-title");
     var right=window.Position.X+window.Width*window.RenderScaling;var top=window.Position.Y;
     foreach(var scale in new[]{0.8,1.0,1.4}) {window.ViewModel.WindowScale=scale;Layout();Check(window.Width==520,"rendered compact width independent at scale "+scale);Check(Math.Abs(window.FindControl<Canvas>("CompactViewport")!.TransformToVisual(window)!.Value.M11-scale)<0.001,"rendered content uses latest scale");Check(Math.Abs(window.Position.X+window.Width*window.RenderScaling-right)<=1 && window.Position.Y==top,"scaling preserves chosen position");}
     Capture("compact-large-text");
@@ -66,6 +78,7 @@ try
     expandedSettings.Flyout.Hide();Layout();
     Check(window.ViewModel.WindowScale==1.2 && window.ViewModel.CompactWidth==760,"expanded settings commit selected preferences");
     window.ViewModel.WindowScale=1;window.ViewModel.CompactWidth=720;Layout();
+    Check(window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text==window.ViewModel.CurrentCard!.Heading && text.FontSize==14),"expanded cards use the same subject and title heading");
     Capture("expanded");Click(window.FindControl<Button>("FoldButton")!);Check(!window.ViewModel.Expanded && window.Width==720,"fold button restores chosen compact width");
     var start=window.Position;
     window.MouseDown(new Point(60,20),MouseButton.Left);window.MouseMove(new Point(-40,100));window.MouseUp(new Point(60,20),MouseButton.Left);Layout();

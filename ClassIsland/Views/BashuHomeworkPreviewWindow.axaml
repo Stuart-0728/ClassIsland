@@ -86,10 +86,10 @@
               <StackPanel.RenderTransform>
                 <TranslateTransform Y="0"/>
               </StackPanel.RenderTransform>
-              <!-- 上行：当前学科大标题（直接展示科目） + 状态微标 -->
-              <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6" VerticalAlignment="Center">
-                <TextBlock Text="{Binding CompactSubjectTitle}" FontSize="13" FontWeight="Bold" Foreground="#15362C" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                <Border Grid.Column="1" Background="{Binding CurrentStatusBackground}" BorderBrush="{Binding CurrentStatusBorder}"
+              <!-- 上行：学科 · 作业标题；为状态保留空间，长标题省略显示。 -->
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6" VerticalAlignment="Center">
+                <TextBlock x:Name="CompactHeading" Text="{Binding CompactSubjectTitle}" ToolTip.Tip="{Binding CompactSubjectTitle}" FontSize="13" FontWeight="Bold" Foreground="#15362C" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <Border x:Name="CompactStatusBadge" Grid.Column="1" Background="{Binding CurrentStatusBackground}" BorderBrush="{Binding CurrentStatusBorder}"
                         BorderThickness="1" CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
                   <TextBlock Text="{Binding CurrentStatus}" Foreground="{Binding CurrentStatusColor}" FontSize="10" FontWeight="SemiBold"/>
                 </Border>
@@ -230,13 +230,10 @@
                   <DataTemplate x:DataType="vm:BashuHomeworkPreviewCard">
                     <Border Padding="14,12" Background="White" BorderBrush="#DFECE5" BorderThickness="1" CornerRadius="10" BoxShadow="0 2 6 0 #0C0F382E">
                       <StackPanel Spacing="7">
-                        <!-- 卡片顶部：学科徽章 + 标题 + 状态药丸 -->
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
-                          <Border Background="{Binding SubjectBackground}" CornerRadius="5" Padding="6,2" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Subject}" Foreground="{Binding SubjectColor}" FontWeight="Bold" FontSize="12"/>
-                          </Border>
-                          <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="Bold" FontSize="14" Foreground="#1A362D" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                          <Border Grid.Column="2" Background="{Binding StatusBackground}" BorderBrush="{Binding StatusBorder}" BorderThickness="1" CornerRadius="5" Padding="7,2" VerticalAlignment="Center">
+                        <!-- 卡片标题与收起态保持相同的学科 · 标题格式。 -->
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Heading}" ToolTip.Tip="{Binding Heading}" FontWeight="Bold" FontSize="14" Foreground="#1A362D" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                          <Border Grid.Column="1" Background="{Binding StatusBackground}" BorderBrush="{Binding StatusBorder}" BorderThickness="1" CornerRadius="5" Padding="7,2" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Status}" Foreground="{Binding StatusColor}" FontSize="11" FontWeight="SemiBold"/>
                           </Border>
                         </Grid>

@@ -31,8 +31,11 @@ try { BashuHomeworkSnapshot.Parse("""{"schemaVersion":2,"revision":"bad","items"
 var fixture = Environment.GetEnvironmentVariable("HOMEWORK_QA_SNAPSHOT");
 if (fixture != null) { vm.ApplySnapshot(BashuHomeworkSnapshot.Parse(File.ReadAllText(fixture))); Check(vm.IsLive && vm.Cards.Count > 0, "actual platform JSON deserializes and renders cards"); }
 var ticker = new BashuHomeworkPreviewViewModel { Stage = 1 };
-Check(ticker.CompactText.Contains("物理") && ticker.CompactText.Contains("示例同学甲"), "folded ticker includes assignment and checked missing names");
-ticker.AdvanceCompactCard(); Check(ticker.CompactText.Contains("数学"), "folded ticker cycles subjects");
+Check(ticker.CompactSubjectTitle == "物理 · 运动的描述 · 巩固练习", "folded heading combines subject and assignment title");
+Check(ticker.CompactText.Contains("示例同学甲") && ticker.CompactText.Contains("教材 P32"), "folded ticker retains content and checked missing names");
+Check(!ticker.CompactText.Contains(ticker.Cards[0].Title) && !ticker.CompactText.Contains(ticker.Cards[0].Subject), "folded body does not repeat its heading");
+Check((ticker.Cards[0] with { Subject = "", Title = "独立标题" }).Heading == "独立标题", "missing subject does not leave an orphan separator");
+ticker.AdvanceCompactCard(); Check(ticker.CompactSubjectTitle == "数学 · 整式的乘法 · 基础练习" && ticker.CompactText.Contains("练习册 P18"), "folded heading and body cycle assignments together");
 ticker.ShowNames = false; Check(!ticker.CompactText.Contains("示例同学"), "folded ticker respects name visibility and resets on update");
 ticker.ApplySnapshot(new BashuHomeworkSnapshot { SchemaVersion=1, Revision="empty" }); ticker.AdvanceCompactCard();
 Check(ticker.CompactText == "暂无待展示作业", "empty folded ticker clears stale work safely");
