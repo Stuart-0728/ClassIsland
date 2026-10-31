@@ -6,7 +6,7 @@ on:
       release_tag:
         description: 'Release Tag'
         required: false
-        default: 'v2.2.19'
+        default: 'v2.2.20'
         type: string
   push:
     branches:
@@ -30,7 +30,7 @@ jobs:
       matrix:
         arch: [x64, arm64]
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.19' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.20' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -80,7 +80,7 @@ jobs:
       - name: Publish ClassIsland.Desktop for Windows ${{ matrix.arch }}
         shell: pwsh
         run: |
-          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.19 -p:AssemblyVersion=2.2.19.0 -p:FileVersion=2.2.19.0 -p:ApplicationVersion=2.2.19 -p:ApplicationDisplayVersion=2.2.19 -o ${{ github.workspace }}/out_publish
+          dotnet publish ClassIsland.Desktop/ClassIsland.Desktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -p:PublishBuilding=true -p:PublishPlatform=windows -p:Platforms_Windows=true -p:ClassIsland_PlatformTarget=${{ matrix.arch }} -p:SelfContained=true -p:ClassIsland_SelfContained=true -p:Version=2.2.20 -p:AssemblyVersion=2.2.20.0 -p:FileVersion=2.2.20.0 -p:ApplicationVersion=2.2.20 -p:ApplicationDisplayVersion=2.2.20 -o ${{ github.workspace }}/out_publish
 
       - name: Build BashuRtc Native Helper for Windows ${{ matrix.arch }}
         shell: pwsh
@@ -117,11 +117,11 @@ jobs:
             Write-Output "PASS native architecture $name : $machine"
           }
           $version = [Reflection.AssemblyName]::GetAssemblyName("${{ github.workspace }}/out_publish/ClassIsland.dll").Version.ToString()
-          if ($version -ne "2.2.19.0") { throw "Unexpected application version: $version" }
+          if ($version -ne "2.2.20.0") { throw "Unexpected application version: $version" }
           $fileVersion = (Get-Item "${{ github.workspace }}/out_publish/ClassIsland.dll").VersionInfo.FileVersion
-          if ($fileVersion -notlike "2.2.19.0*") { throw "Unexpected file version: $fileVersion" }
+          if ($fileVersion -notlike "2.2.20.0*") { throw "Unexpected file version: $fileVersion" }
           Copy-Item LICENSE.txt "${{ github.workspace }}/out_publish/LICENSE.txt"
-          Copy-Item doc/BashuHomeworkPreviewRelease.md "${{ github.workspace }}/out_publish/README-2.2.19.md"
+          Copy-Item doc/BashuHomeworkPreviewRelease.md "${{ github.workspace }}/out_publish/README-2.2.20.md"
           if ('${{ matrix.arch }}' -eq 'x64') {
             # Tool windows intentionally have no Process.MainWindowHandle; enumerate their native HWNDs.
             Add-Type -TypeDefinition @'
@@ -170,7 +170,7 @@ jobs:
         with:
           path: ./installer/setup.iss
           options: |
-            /DAppVersion=2.2.19
+            /DAppVersion=2.2.20
             /FClassIsland-Teaching-Windows-${{ matrix.arch }}-Setup
             /O${{ github.workspace }}\out_installer
             /DSourceDir=${{ github.workspace }}\out_publish
@@ -199,7 +199,7 @@ jobs:
     needs: [build_windows]
     runs-on: ubuntu-latest
     env:
-      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.19' }}
+      TAG_NAME: ${{ github.event.inputs.release_tag || github.ref_name || 'v2.2.20' }}
     steps:
       - uses: actions/checkout@v4
       - name: Download all artifacts

@@ -156,7 +156,7 @@ public class BashuPlatformConnection : IManagementServerConnection
     public async Task<string> GetHomeworkAsync(CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/display-client/homework");
-        request.Headers.Add("X-Homework-Client-Version", "2.2.18");
+        request.Headers.Add("X-Homework-Client-Version", "2.2.20");
         using var response = await HttpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(cancellationToken);
