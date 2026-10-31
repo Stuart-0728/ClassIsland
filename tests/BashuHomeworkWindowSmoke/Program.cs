@@ -30,7 +30,7 @@ try
     Check(JsonSerializer.Deserialize<BashuHomeworkWindowState>("{}")!.IsPinned,"existing preferences retain default topmost behavior");
     Check(window.Width==520 && window.Height==62,"compact window opens with wider readable viewport");
     Check(window.FindControl<Canvas>("CompactViewport")!.Bounds.Width>300,"compact text retains usable reading width");
-    Check(window.FindControl<TextBlock>("CompactHeading")!.Text == window.ViewModel.CurrentCard!.Heading,"actual compact heading includes subject and assignment content");
+    Check(window.FindControl<TextBlock>("CompactHeading")!.Text == window.ViewModel.CurrentCard!.AssignmentContent,"actual compact heading includes subject and assignment content");
     Capture("compact-default");
     var longTitle=string.Concat(Enumerable.Repeat("运动和物态变化专题复习",12));
     window.ViewModel.ApplySnapshot(new ClassIsland.ViewModels.BashuHomeworkSnapshot { SchemaVersion=1, Revision="long-heading", ClassName="演示班级", Items=[new() {Id="title-test",Subject="物理",Title=longTitle,Content=longTitle,Checked=false,Total=48}] });
@@ -40,7 +40,7 @@ try
         window.ViewModel.CompactWidth=width;Layout();
         var heading=window.FindControl<TextBlock>("CompactHeading")!;var badge=window.FindControl<Border>("CompactStatusBadge")!;
         var headingViewport=window.FindControl<ScrollViewer>("CompactHeadingViewport")!;
-        Check(heading.Text=="物理 · "+longTitle && heading.TextTrimming==Avalonia.Media.TextTrimming.None,"long heading retains full content without ellipsis at width "+width);
+        Check(heading.Text==longTitle && heading.TextTrimming==Avalonia.Media.TextTrimming.None,"long heading retains full content without ellipsis at width "+width);
         Check(headingViewport.Bounds.Right<=badge.Bounds.Left && badge.Bounds.Right<=((Control)badge.Parent!).Bounds.Width+1,"long content does not push status outside its row at width "+width);
         Check(headingViewport.Extent.Width>headingViewport.Viewport.Width,"long content overflows within its own clipped viewport at width "+width);
     }
@@ -48,11 +48,15 @@ try
     window.MouseMove(new Point(-20,-20));
     var compactHeading=window.FindControl<ScrollViewer>("CompactHeadingViewport")!;
     var fixedBadge=window.FindControl<Border>("CompactStatusBadge")!.Bounds;
+    var subjectLabel=window.FindControl<TextBlock>("CompactSubjectLabel")!;
+    var subjectPosition=subjectLabel.TranslatePoint(default,window);
+    Check(subjectLabel.Text=="物理 ·","subject and separator have their own fixed display");
     for(var i=0;i<7;i++)window.AdvanceTicker(0.25);Layout();
     Check(compactHeading.Offset.X==0,"long content pauses at its beginning before scrolling");
     for(var i=0;i<8;i++)window.AdvanceTicker(0.25);Layout();
     Check(compactHeading.Offset.X>0,"long content actually scrolls after the reading pause");
     Check(window.FindControl<Border>("CompactStatusBadge")!.Bounds==fixedBadge,"status remains fixed while content scrolls");
+    Check(subjectLabel.Text=="物理 ·" && subjectLabel.TranslatePoint(default,window)==subjectPosition,"subject and separator stay fixed while only the assignment scrolls");
     Capture("compact-content-scrolling");
     var hovered=compactHeading.TranslatePoint(new Point(4,4),window)!.Value;
     window.MouseMove(hovered);Layout();var pausedOffset=compactHeading.Offset;
@@ -106,11 +110,13 @@ try
     expandedSettings.Flyout.Hide();Layout();
     Check(window.ViewModel.WindowScale==1.2 && window.ViewModel.CompactWidth==760,"expanded settings commit selected preferences");
     window.ViewModel.WindowScale=1;window.ViewModel.CompactWidth=720;Layout();
-    Check(window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text==window.ViewModel.CurrentCard!.Heading && text.FontSize==14),"expanded cards use the same subject and content heading");
+    Check(window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text==window.ViewModel.CurrentCard!.AssignmentContent && text.FontSize==14),"expanded cards use the same subject and content heading");
     window.MouseMove(new Point(-20,-20));
     var expandedHeading=window.GetVisualDescendants().OfType<ScrollViewer>().First(x=>x.Classes.Contains("homework-heading") && x.IsEffectivelyVisible);
     for(var i=0;i<16;i++)window.AdvanceTicker(0.25);Layout();
     Check(expandedHeading.Offset.X>0,"expanded cards also scroll overflowing assignment content");
+    var expandedSubject=((Control)expandedHeading.Parent!).GetVisualDescendants().OfType<TextBlock>().First(x=>x.Text=="物理 ·");
+    Check(expandedSubject.Bounds.Right<=expandedHeading.Bounds.Left,"expanded subject remains outside the scrolling content viewport");
     Capture("expanded-content-scrolling");Click(window.FindControl<Button>("FoldButton")!);Check(!window.ViewModel.Expanded && window.Width==720,"fold button restores chosen compact width");
     var start=window.Position;
     window.MouseDown(new Point(60,20),MouseButton.Left);window.MouseMove(new Point(-40,100));window.MouseUp(new Point(60,20),MouseButton.Left);Layout();

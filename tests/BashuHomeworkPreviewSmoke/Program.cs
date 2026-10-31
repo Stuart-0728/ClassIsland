@@ -32,6 +32,7 @@ var fixture = Environment.GetEnvironmentVariable("HOMEWORK_QA_SNAPSHOT");
 if (fixture != null) { vm.ApplySnapshot(BashuHomeworkSnapshot.Parse(File.ReadAllText(fixture))); Check(vm.IsLive && vm.Cards.Count > 0, "actual platform JSON deserializes and renders cards"); }
 var ticker = new BashuHomeworkPreviewViewModel { Stage = 1 };
 Check(ticker.CompactSubjectTitle == "物理 · " + ticker.Cards[0].Content, "heading uses assignment content instead of its title");
+Check(ticker.CurrentSubjectLabel=="物理 ·" && ticker.CompactAssignmentContent==ticker.Cards[0].Content,"subject and assignment content bind independently");
 Check(ticker.CompactText.Contains("示例同学甲") && ticker.CompactText.Contains(ticker.Cards[0].Deadline), "folded lower line retains deadline and checked missing names");
 Check(!ticker.CompactText.Contains(ticker.Cards[0].Content) && !ticker.CompactText.Contains(ticker.Cards[0].Subject), "folded lower line does not repeat content from the heading");
 Check((ticker.Cards[0] with { Subject = "", Content = "独立内容" }).Heading == "独立内容", "missing subject does not leave an orphan separator");

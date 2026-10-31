@@ -101,12 +101,16 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     public string CurrentStatusBackground => CurrentCard?.StatusBackground ?? "#E8F5F1";
     public string CurrentStatusBorder => CurrentCard?.StatusBorder ?? "#C5E3D8";
 
+    public string CurrentSubjectLabel => CurrentCard?.SubjectLabel ?? "";
+    public string CompactAssignmentContent => CurrentCard?.AssignmentContent ?? (IsLive ? "班级作业" : "示例作业");
     public string CompactSubjectTitle => Cards.Count == 0 ? (IsLive ? "班级作业" : "示例作业") : (CurrentCard?.Heading ?? "作业");
 
     public void AdvanceCompactCard()
     {
         _compactIndex = Cards.Count == 0 ? 0 : (_compactIndex + 1) % Cards.Count;
         OnPropertyChanged(nameof(CompactSubjectTitle));
+        OnPropertyChanged(nameof(CurrentSubjectLabel));
+        OnPropertyChanged(nameof(CompactAssignmentContent));
         OnPropertyChanged(nameof(CompactText));
         OnPropertyChanged(nameof(CurrentCard));
         OnPropertyChanged(nameof(CurrentSubject));
@@ -218,6 +222,8 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(CurrentCard));
         OnPropertyChanged(nameof(CompactSubjectTitle));
+        OnPropertyChanged(nameof(CurrentSubjectLabel));
+        OnPropertyChanged(nameof(CompactAssignmentContent));
         OnPropertyChanged(nameof(CurrentSubject));
         OnPropertyChanged(nameof(CurrentSubjectColor));
         OnPropertyChanged(nameof(CurrentSubjectBackground));
@@ -265,7 +271,9 @@ public sealed record BashuHomeworkPreviewCard(
     string StatusBorder = "#C5E3D8"
 )
 {
-    public string Heading => string.Join(" · ", new[] { Subject, string.IsNullOrWhiteSpace(Content) ? Title : Content }.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim())).Replace("\r", " ").Replace("\n", " ");
+    public string SubjectLabel => string.IsNullOrWhiteSpace(Subject) ? "" : Subject.Trim() + " ·";
+    public string AssignmentContent => (string.IsNullOrWhiteSpace(Content) ? Title : Content).Trim().Replace("\r", " ").Replace("\n", " ");
+    public string Heading => string.Join(" · ", new[] { Subject, AssignmentContent }.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()));
     public bool HasNames => Names.Length > 0;
     public string MissingCountLabel => Missing > 0 ? $"待补交学生名单（{Missing}人）" : "待补交学生名单";
 }
