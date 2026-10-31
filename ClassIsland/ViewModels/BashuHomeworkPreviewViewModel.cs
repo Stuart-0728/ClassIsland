@@ -22,7 +22,7 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     private int _compactIndex;
     public string CompactText => Cards.Count == 0 ? Summary : FormatCompact(Cards[_compactIndex % Cards.Count]);
     private static string FormatCompact(BashuHomeworkPreviewCard card) => string.Join(" · ",
-        new[] { card.Content, card.Deadline, card.Status, card.Names }
+        new[] { card.Deadline, card.Status, card.Names }
             .Where(x => !string.IsNullOrWhiteSpace(x))).Replace("\r", " ").Replace("\n", " ");
 
     private double _windowScale = 1.0;
@@ -265,7 +265,7 @@ public sealed record BashuHomeworkPreviewCard(
     string StatusBorder = "#C5E3D8"
 )
 {
-    public string Heading => string.Join(" · ", new[] { Subject, Title }.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim())).Replace("\r", " ").Replace("\n", " ");
+    public string Heading => string.Join(" · ", new[] { Subject, string.IsNullOrWhiteSpace(Content) ? Title : Content }.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim())).Replace("\r", " ").Replace("\n", " ");
     public bool HasNames => Names.Length > 0;
     public string MissingCountLabel => Missing > 0 ? $"待补交学生名单（{Missing}人）" : "待补交学生名单";
 }

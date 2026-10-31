@@ -111,7 +111,7 @@ public partial class BashuHomeworkPreviewWindow : Window
             FitScreen(true);
             _isOpened = true;
             _tickerClock.Restart();
-            if (!ViewModel.Expanded) _tickerTimer.Start();
+            _tickerTimer.Start();
         };
         Screens.Changed += Screens_OnChanged;
         Closing += (_, _) =>
@@ -279,26 +279,48 @@ public partial class BashuHomeworkPreviewWindow : Window
         if (e.PropertyName is not (nameof(ViewModel.Expanded) or nameof(ViewModel.CompactText))) return;
         _tickerSeconds = 0;
         Canvas.SetLeft(this.FindControl<TextBlock>("CompactTicker")!, 0);
+        foreach (var heading in this.GetVisualDescendants().OfType<ScrollViewer>().Where(x => x.Classes.Contains("homework-heading")))
+            heading.Offset = default;
         _tickerClock.Restart();
-        if (ViewModel.Expanded) _tickerTimer.Stop();
-        else _tickerTimer.Start();
+        if (_isOpened && !_isClosing) _tickerTimer.Start();
     }
     private void TickCompact()
     {
         var elapsed = _tickerClock.Elapsed.TotalSeconds;
         _tickerClock.Restart();
+        AdvanceTicker(elapsed);
+    }
+
+    internal void AdvanceTicker(double elapsed)
+    {
+        if (_isClosing || _isSwitchingCard) return;
+        var headings = this.GetVisualDescendants().OfType<ScrollViewer>()
+            .Where(x => x.Classes.Contains("homework-heading") && x.IsEffectivelyVisible && x.Viewport.Width > 0).ToArray();
         var viewport = this.FindControl<Canvas>("CompactViewport")!;
-        var text = this.FindControl<TextBlock>("CompactTicker")!;
-        // Pause under the pointer so names and long assignments remain readable.
-        if (ViewModel.Expanded || viewport.IsPointerOver) return;
-        _tickerSeconds += Math.Min(elapsed, 0.25);
-        var distance = Math.Max(0, text.Bounds.Width - viewport.Bounds.Width);
+        // Pause both lines together so the heading and its roster stay on the same assignment.
+        if (headings.Any(x => x.IsPointerOver) || (!ViewModel.Expanded && viewport.IsPointerOver)) return;
+        _tickerSeconds += Math.Clamp(elapsed, 0, 0.25);
         const double speed = 28;
-        Canvas.SetLeft(text, -Math.Clamp((_tickerSeconds - 2) * speed, 0, distance));
+        var distance = 0.0;
+        foreach (var heading in headings)
+        {
+            var overflow = Math.Max(0, heading.Extent.Width - heading.Viewport.Width);
+            heading.Offset = new Vector(Math.Clamp((_tickerSeconds - 2) * speed, 0, overflow), 0);
+            distance = Math.Max(distance, overflow);
+        }
+        if (!ViewModel.Expanded)
+        {
+            var text = this.FindControl<TextBlock>("CompactTicker")!;
+            var overflow = Math.Max(0, text.Bounds.Width - viewport.Bounds.Width);
+            Canvas.SetLeft(text, -Math.Clamp((_tickerSeconds - 2) * speed, 0, overflow));
+            distance = Math.Max(distance, overflow);
+        }
+        // Give the longest line time to reach its end before advancing to the next assignment.
         if (_tickerSeconds >= (distance > 0 ? 4 + distance / speed : 6))
         {
             _tickerSeconds = 0;
-            _ = AnimateSwitchCardAsync();
+            foreach (var heading in headings) heading.Offset = default;
+            if (!ViewModel.Expanded) _ = AnimateSwitchCardAsync();
         }
     }
     private bool _isSwitchingCard;
