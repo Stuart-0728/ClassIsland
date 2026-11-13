@@ -5,8 +5,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Threading;
-using ClassIsland.Core.Abstractions.Services.Management;
 using ClassIsland.Shared;
 using ClassIsland.Shared.Abstraction.Services;
 using ClassIsland.Shared.Enums;
@@ -33,12 +31,24 @@ public class BashuPlatformConnection : IManagementServerConnection
     public Guid ClientGuid { get; }
     public string LastError { get; private set; } = "尚未连接";
 
-    private HttpClient HttpClient { get; } = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private HttpClient HttpClient { get; }
+    internal BashuPollingPolicy PollSchedule { get; }
+    internal BashuPollingPolicy HomeworkSchedule { get; }
+    internal bool HomeworkNotModified { get; private set; }
+    public bool PairingInvalid { get; private set; }
+    private string? HomeworkEtag;
 
     public event EventHandler<ClientCommandEventArgs>? CommandReceived;
 
     public BashuPlatformConnection(ManagementSettings settings, Guid clientGuid)
+        : this(settings, clientGuid, new HttpClient { Timeout = TimeSpan.FromSeconds(15) }) { }
+
+    internal BashuPlatformConnection(ManagementSettings settings, Guid clientGuid, HttpClient client,
+        Func<DateTimeOffset>? clock = null, Func<double>? jitter = null)
     {
+        HttpClient = client;
+        PollSchedule = new(TimeSpan.FromSeconds(5), clock, jitter);
+        HomeworkSchedule = new(TimeSpan.FromSeconds(15), clock, jitter);
         Settings = settings;
         ClientGuid = clientGuid;
         ConfigureHttpClient();
@@ -59,6 +69,11 @@ public class BashuPlatformConnection : IManagementServerConnection
     public void UpdateToken(string token)
     {
         Settings.BashuDeviceToken = token;
+        PollSchedule.Reset();
+        HomeworkSchedule.Reset();
+        HomeworkEtag = null;
+        HomeworkNotModified = false;
+        PairingInvalid = false;
         HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
@@ -153,43 +168,72 @@ public class BashuPlatformConnection : IManagementServerConnection
     /// <summary>
     /// 轮询课表、天气与通知广播
     /// </summary>
-    public async Task<string> GetHomeworkAsync(CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/display-client/homework");
-        request.Headers.Add("X-Homework-Client-Version", "2.2.20");
-        using var response = await HttpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync(cancellationToken);
-    }
+    internal void InvalidateHomeworkCache() => HomeworkEtag = null;
 
-    public async Task<string?> PollAsync(CancellationToken cancellationToken = default)
+    public async Task<string?> GetHomeworkAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(Settings.BashuDeviceToken))
-        {
-            return null;
-        }
-
+        HomeworkNotModified = false;
+        if (!HomeworkSchedule.IsDue || string.IsNullOrWhiteSpace(Settings.BashuDeviceToken)) return null;
         try
         {
-            var response = await HttpClient.GetAsync("/api/display-client/poll", cancellationToken);
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/display-client/homework");
+            request.Headers.Add("X-Homework-Client-Version", "2.2.21");
+            if (HomeworkEtag != null) request.Headers.TryAddWithoutValidation("If-None-Match", HomeworkEtag);
+            using var response = await HttpClient.SendAsync(request, cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
             {
-                LastError = "设备配对已失效，请在平台重新生成配对码";
-                Logger.LogWarning("设备 Token 已失效或被解绑");
+                HomeworkNotModified = true;
+                PairingInvalid = false;
+                HomeworkSchedule.Succeeded(response);
                 return null;
             }
             if (!response.IsSuccessStatusCode)
             {
-                LastError = $"平台连接失败（HTTP {(int)response.StatusCode}）";
-                Logger.LogDebug("轮询平台数据返回状态码：{}", response.StatusCode);
+                PairingInvalid = response.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+                HomeworkSchedule.Failed(response);
                 return null;
             }
-
-            return await response.Content.ReadAsStringAsync(cancellationToken);
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            HomeworkEtag = response.Headers.ETag?.ToString();
+            PairingInvalid = false;
+            HomeworkSchedule.Succeeded(response);
+            return json;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
-            LastError = "平台暂时无法连接，请检查网络；保留上次同步课表";
+            HomeworkSchedule.Failed();
+            Logger.LogDebug(ex, "作业同步暂不可用，等待重试");
+            return null;
+        }
+    }
+
+    public async Task<string?> PollAsync(CancellationToken cancellationToken = default, bool forceSchedule = false)
+    {
+        if (!PollSchedule.IsDue || string.IsNullOrWhiteSpace(Settings.BashuDeviceToken)) return null;
+        try
+        {
+            using var response = await HttpClient.GetAsync("/api/display-client/poll" + (forceSchedule ? "?schedule=full" : ""), cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                PairingInvalid = response.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+                LastError = PairingInvalid ? "设备配对已失效，请在平台重新生成配对码" :
+                    response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ? "平台正在限流，已按要求延后同步" :
+                    $"平台连接失败（HTTP {(int)response.StatusCode}），稍后重试";
+                PollSchedule.Failed(response);
+                return null;
+            }
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            PairingInvalid = false;
+            LastError = "平台已连接";
+            PollSchedule.Succeeded(response);
+            return json;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            LastError = "平台暂时无法连接，保留上次同步结果并自动重试";
+            PollSchedule.Failed();
             Logger.LogDebug("轮询平台数据失败：{}", ex.Message);
             return null;
         }

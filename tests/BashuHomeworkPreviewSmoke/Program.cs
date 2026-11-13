@@ -69,3 +69,9 @@ placement.WindowScale=double.NaN;placement.CompactWidth=double.PositiveInfinity;
 Check(placement.WindowScale==1 && placement.CompactWidth==520 && placement.RightInset==16,"invalid saved geometry falls back safely");
 vm.CompactWidth=720;vm.WindowScale=1.4;
 Check(vm.CompactWidth==720,"view model does not scale capsule width with content");
+
+vm.ApplySnapshot(BashuHomeworkSnapshot.Parse("""{"schemaVersion":1,"revision":"offline-check","className":"测试班级","items":[{"id":"1","subject":"物理","content":"完成练习","checked":true,"total":2,"completed":1,"missingNames":["测试同学"]}]}"""));
+var retained=vm.Cards[0];var synchronized=vm.LastSynchronizedAt;
+vm.MarkOffline();Check(vm.IsOffline && ReferenceEquals(vm.Cards[0],retained) && vm.LastSynchronizedAt==synchronized,"disconnect retains the exact last snapshot and its synchronization time");
+Check(vm.CompactText.Contains("离线") && vm.Subtitle.Contains("上次同步") && vm.Cards[0].Names.Contains("测试同学"),"compact and expanded views label retained results as offline");
+vm.MarkSynchronized();Check(!vm.IsOffline && ReferenceEquals(vm.Cards[0],retained),"unchanged 304 recovery clears offline status without rebuilding cards");

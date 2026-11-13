@@ -28,10 +28,13 @@ public partial class BashuHomeworkPreviewWindow : Window
     private static BashuHomeworkPreviewWindow? _liveInstance;
     private static BashuHomeworkSnapshot? _latest;
     private static string? _closedRevision;
+    private static bool _isOffline;
+    private static DateTimeOffset? _lastSynchronizedAt;
     public static void UpdateLive(BashuHomeworkSnapshot snapshot)
     {
         var changed = _latest?.Revision != snapshot.Revision;
         _latest = snapshot;
+        MarkLiveSynchronized();
         if (_liveInstance == null && _closedRevision != snapshot.Revision)
         {
             OpenLive();
@@ -48,6 +51,8 @@ public partial class BashuHomeworkPreviewWindow : Window
             if (_latest != null)
             {
                 _liveInstance.ViewModel.ApplySnapshot(_latest);
+                _liveInstance.ViewModel.MarkSynchronized(_lastSynchronizedAt);
+                if (_isOffline) _liveInstance.ViewModel.MarkOffline();
             }
             else
             {
@@ -58,9 +63,20 @@ public partial class BashuHomeworkPreviewWindow : Window
         }
         else _liveInstance.Activate();
     }
+    public static void MarkLiveOffline()
+    {
+        _isOffline = true;
+        _liveInstance?.ViewModel.MarkOffline();
+    }
+    public static void MarkLiveSynchronized()
+    {
+        _isOffline = false;
+        _lastSynchronizedAt = DateTimeOffset.Now;
+        _liveInstance?.ViewModel.MarkSynchronized(_lastSynchronizedAt);
+    }
     public static void ResetLive()
     {
-        _liveInstance?.Close(); _liveInstance = null; _latest = null; _closedRevision = null;
+        _liveInstance?.Close(); _liveInstance = null; _latest = null; _closedRevision = null; _isOffline = false; _lastSynchronizedAt = null;
     }
     private readonly string _statePath;
     private readonly BashuHomeworkWindowState _windowState;

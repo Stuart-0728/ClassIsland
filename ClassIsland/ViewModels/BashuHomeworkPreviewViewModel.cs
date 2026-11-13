@@ -13,14 +13,17 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     private BashuHomeworkSnapshot? _snapshot;
     public bool IsLive { get; private set; }
     public bool IsDemo => !IsLive;
+    public bool IsOffline { get; private set; }
+    public DateTimeOffset? LastSynchronizedAt { get; private set; }
+    private string OfflineLabel => LastSynchronizedAt.HasValue ? $"离线 · 上次同步 {LastSynchronizedAt.Value.LocalDateTime:MM-dd HH:mm}" : "暂未连接";
     public string Subtitle => IsLive
-        ? (_snapshot != null ? $"{_snapshot.ClassName} · 平台实时同步" : "平台实时同步 · 正在获取作业数据")
+        ? (_snapshot != null ? $"{_snapshot.ClassName} · {(IsOffline ? OfflineLabel : "平台实时同步")}" : "平台实时同步 · 正在获取作业数据")
         : "演示测试版 · 模拟班级 · 不连接真实数据";
     public string ContextLabel => IsLive ? (_snapshot?.ClassName ?? "班级作业") : "示例班级";
     public bool IsEmpty => Cards.Count == 0;
     public string CompactSummary => Summary;
     private int _compactIndex;
-    public string CompactText => Cards.Count == 0 ? Summary : FormatCompact(Cards[_compactIndex % Cards.Count]);
+    public string CompactText => (IsOffline ? OfflineLabel + " · " : "") + (Cards.Count == 0 ? Summary : FormatCompact(Cards[_compactIndex % Cards.Count]));
     private static string FormatCompact(BashuHomeworkPreviewCard card) => string.Join(" · ",
         new[] { card.Deadline, card.Status, card.Names }
             .Where(x => !string.IsNullOrWhiteSpace(x))).Replace("\r", " ").Replace("\n", " ");
@@ -126,6 +129,8 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     public void EnterLiveMode(string? className = null)
     {
         IsLive = true;
+        IsOffline = false;
+        LastSynchronizedAt = null;
         _snapshot = null;
         SyncHint = "正在连接平台作业接口...";
         Cards.Clear();
@@ -140,9 +145,30 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     public void ApplySnapshot(BashuHomeworkSnapshot snapshot)
     {
         IsLive = true; _snapshot = snapshot;
+        MarkSynchronized();
         SyncHint = $"{DateTime.Now:HH:mm:ss} 已同步 · 清查和补交结果自动更新";
         Refresh(); OnPropertyChanged(nameof(IsLive)); OnPropertyChanged(nameof(IsDemo));
         OnPropertyChanged(nameof(ContextLabel)); OnPropertyChanged(nameof(Subtitle)); OnPropertyChanged(nameof(SyncHint));
+    }
+
+    public void MarkOffline()
+    {
+        if (!IsLive || IsOffline) return;
+        IsOffline = true;
+        OnPropertyChanged(nameof(IsOffline));
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(CompactText));
+    }
+
+    public void MarkSynchronized(DateTimeOffset? synchronizedAt = null)
+    {
+        var wasOffline = IsOffline;
+        LastSynchronizedAt = synchronizedAt ?? DateTimeOffset.Now;
+        IsOffline = false;
+        OnPropertyChanged(nameof(LastSynchronizedAt));
+        OnPropertyChanged(nameof(IsOffline));
+        OnPropertyChanged(nameof(Subtitle));
+        if (wasOffline) OnPropertyChanged(nameof(CompactText));
     }
 
     private bool _expanded = false;

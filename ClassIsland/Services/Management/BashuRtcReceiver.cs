@@ -50,7 +50,7 @@ public sealed class BashuRtcReceiver(IAudioService audio, INotificationHostServi
             try
             {
                 await PollCoreAsync(connection, token);
-                var delay = Sessions.Values.Any(session => !session.HasAudio) ? 120 : Sessions.Count > 0 ? 2000 : 0;
+                var delay = Sessions.Values.Any(session => !session.HasAudio) ? 500 : Sessions.Count > 0 ? 2000 : 0;
                 if (delay > 0) await Task.Delay(delay, token);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }

@@ -49,33 +49,48 @@ public class BashuPlatformService : IHostedService
     private async Task PollHomeworkAsync()
     {
         var connection = Connection;
-        var binding = connection?.Settings.BashuDeviceToken;
+        var token = connection?.Settings.BashuDeviceToken;
+        var binding = connection == null ? null : connection.Settings.BashuServerUrl.TrimEnd('/') + "|" + token;
         if (HomeworkBinding != binding)
         {
             HomeworkBinding = binding;
             await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.ResetLive);
         }
-        if (HomeworkPolling || Shutdown.IsCancellationRequested || connection == null || string.IsNullOrWhiteSpace(binding)) return;
+        if (HomeworkPolling || Shutdown.IsCancellationRequested || connection == null || string.IsNullOrWhiteSpace(token) || !connection.HomeworkSchedule.IsDue) return;
         HomeworkPolling = true;
         try
         {
             var json = await connection.GetHomeworkAsync(Shutdown.Token);
+            if (Shutdown.IsCancellationRequested || Connection != connection || HomeworkBinding != binding || connection.Settings.BashuDeviceToken != token) return;
+            if (json == null)
+            {
+                if (connection.PairingInvalid) await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.ResetLive);
+                else if (connection.HomeworkNotModified) await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.MarkLiveSynchronized);
+                else await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.MarkLiveOffline);
+                return;
+            }
             var snapshot = ClassIsland.ViewModels.BashuHomeworkSnapshot.Parse(json);
-            if (Shutdown.IsCancellationRequested || Connection != connection || connection.Settings.BashuDeviceToken != binding) return;
             await Dispatcher.UIThread.InvokeAsync(() => BashuHomeworkPreviewWindow.UpdateLive(snapshot));
         }
+        catch (OperationCanceledException) when (Shutdown.IsCancellationRequested) { }
         catch (Exception ex)
         {
-            // Clear stale student names on disconnect/revocation instead of displaying old clearance results.
-            if (Connection == connection && connection.Settings.BashuDeviceToken == binding)
-                await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.ResetLive);
+            connection.InvalidateHomeworkCache();
+            connection.HomeworkSchedule.Failed();
+            if (Connection == connection && HomeworkBinding == binding && connection.Settings.BashuDeviceToken == token)
+                await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.MarkLiveOffline);
             Logger.LogDebug(ex, "作业悬浮窗同步暂不可用");
         }
-        finally { HomeworkPolling = false; }
+        finally
+        {
+            HomeworkPolling = false;
+            if (HomeworkTimer != null && Connection == connection) HomeworkTimer.Interval = connection.HomeworkSchedule.Interval;
+        }
     }
 
     private DispatcherTimer? PollTimer { get; set; }
     private string LastScheduleSignature { get; set; } = "";
+    private DateTime LastScheduleDay;
     private Profile? LastSyncedProfile;
     private readonly HashSet<long> ProcessedNotificationIds = new();
     private readonly Queue<long> ProcessedNotificationOrder = new();
@@ -103,6 +118,7 @@ public class BashuPlatformService : IHostedService
     private readonly HashSet<long> PendingIntercomAcks = new();
     private readonly CancellationTokenSource Shutdown = new();
     private BashuPlatformConnection? LastConnection;
+    private string? LastConnectionBinding;
     public string Status { get; private set; } = "等待连接";
     public string LastSync { get; private set; } = "尚未同步";
     private NotificationRequest? IntercomNotification;
@@ -179,10 +195,10 @@ public class BashuPlatformService : IHostedService
         EnsureAutoStartEnabled();
         PollTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(1)
+            Interval = TimeSpan.FromSeconds(5)
         };
         PollTimer.Tick += async (sender, args) => await PollOnceAsync();
-        HomeworkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        HomeworkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         HomeworkTimer.Tick += async (_, _) => await PollHomeworkAsync();
         HomeworkTimer.Start();
         _ = PollHomeworkAsync();
@@ -234,13 +250,17 @@ public class BashuPlatformService : IHostedService
         {
             RtcReceiver.Stop();
             WsReceiver.Dispose();
+            HomeworkBinding = null;
+            await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.ResetLive);
             return;
         }
 
+        if (!conn.PollSchedule.IsDue) return;
         IsPolling = true;
         try
         {
-            if (LastConnection != conn)
+            var connectionBinding = conn.Settings.BashuServerUrl.TrimEnd('/') + "|" + conn.Settings.BashuDeviceToken;
+            if (LastConnection != conn || LastConnectionBinding != connectionBinding)
             {
                 EnsureAutoStartEnabled();
                 RtcReceiver.Stop();
@@ -250,6 +270,7 @@ public class BashuPlatformService : IHostedService
                 InterruptedAudio = null;
                 IntercomNotification?.Cancel(); IntercomNotification = null; DisplayedIntercomSession = 0;
                 LastConnection = conn;
+                LastConnectionBinding = connectionBinding;
                 LastScheduleSignature = "";
                 ProcessedNotificationIds.Clear(); ProcessedNotificationOrder.Clear();
                 ProcessedIntercomSegmentIds.Clear(); ProcessedIntercomSegmentOrder.Clear();
@@ -272,28 +293,23 @@ public class BashuPlatformService : IHostedService
             }
             await RtcReceiver.PollAsync(conn);
             WsReceiver.EnsureConnected(conn);
-            var json = await conn.PollAsync(Shutdown.Token);
+            var today = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(8)).Date;
+            var needSchedule = forceSchedule || string.IsNullOrEmpty(LastScheduleSignature) || LastScheduleDay != today || !ReferenceEquals(LastSyncedProfile, ProfileService.Profile);
+            var json = await conn.PollAsync(Shutdown.Token, needSchedule);
+            if (conn.PairingInvalid)
+            {
+                Status = conn.LastError;
+                RtcReceiver.Stop();
+                WsReceiver.Dispose();
+                await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.ResetLive);
+                return;
+            }
             if (string.IsNullOrWhiteSpace(json))
             {
                 Status = conn.LastError;
                 // The media path is independent after ICE connects. A transient
                 // dashboard polling failure must not tear down live intercom.
-                if (PollTimer != null && PollTimer.Interval != TimeSpan.FromSeconds(5))
-                {
-                    PollTimer.Interval = TimeSpan.FromSeconds(5);
-                }
                 return;
-            }
-
-            // 成功通信，动态平滑防饥饿自适应轮询：
-            // 当存在待播/在播对讲音频时，切换为 250ms 高频极速轮询，从根本上杜绝 1-2s 音频中间由于轮询等待引起的静音间隙与延迟累积；
-            // 待对讲结束后恢复 1 秒节能轮询
-            var hasActiveAudio = EmergencyAudioQueue.Count > 0 || NormalAudioQueue.Count > 0 ||
-                                 IsAudioQueueRunning || (DateTime.UtcNow - LastAudioAt < TimeSpan.FromSeconds(3));
-            var desiredInterval = hasActiveAudio ? TimeSpan.FromMilliseconds(250) : TimeSpan.FromSeconds(1);
-            if (PollTimer != null && PollTimer.Interval != desiredInterval)
-            {
-                PollTimer.Interval = desiredInterval;
             }
 
             using var doc = JsonDocument.Parse(json);
@@ -313,6 +329,7 @@ public class BashuPlatformService : IHostedService
                         LastSyncedProfile = ProfileService.Profile;
                         LastSync = DateTime.Now.ToString("MM-dd HH:mm:ss");
                     }
+                    LastScheduleDay = today;
                 }
                 else
                 {
@@ -456,13 +473,6 @@ public class BashuPlatformService : IHostedService
                     var emergency = segment.TryGetProperty("priority", out var priorityEl) && priorityEl.GetString() == "emergency";
                     (emergency ? EmergencyAudioQueue : NormalAudioQueue).Enqueue((conn, queuedSegment, segId));
                 }
-                if (EmergencyAudioQueue.Count > 0 || NormalAudioQueue.Count > 0)
-                {
-                    if (PollTimer != null && PollTimer.Interval != TimeSpan.FromMilliseconds(250))
-                    {
-                        PollTimer.Interval = TimeSpan.FromMilliseconds(250);
-                    }
-                }
                 if (EmergencyAudioQueue.Count > 0 && !IsEmergencyAudioPlaying)
                     CurrentAudioCancellation?.Cancel();
                 _ = DrainAudioQueueAsync();
@@ -472,14 +482,12 @@ public class BashuPlatformService : IHostedService
         {
             Status = "同步失败：" + ex.Message;
             Logger.LogWarning(ex, "执行平台轮询发生错误");
-            if (PollTimer != null && PollTimer.Interval != TimeSpan.FromSeconds(5))
-            {
-                PollTimer.Interval = TimeSpan.FromSeconds(5);
-            }
+            conn.PollSchedule.Failed();
         }
         finally
         {
             IsPolling = false;
+            if (PollTimer != null && Connection == conn) PollTimer.Interval = conn.PollSchedule.Interval;
         }
     }
 

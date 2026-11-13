@@ -159,6 +159,23 @@ try
     var closingSettings=window.FindControl<Button>("CompactSettingsButton")!;Click(closingSettings);
     window.ViewModel.DraftCompactWidth=810;window.Close();window=null;
     Check(JsonSerializer.Deserialize<BashuHomeworkWindowState>(File.ReadAllText(statePath))!.CompactWidth==810,"closing window with settings open commits draft safely");
+    BashuHomeworkPreviewWindow.ResetLive();
+    var liveSnapshot=ClassIsland.ViewModels.BashuHomeworkSnapshot.Parse("""{"schemaVersion":1,"revision":"live-a","className":"测试班级","items":[{"id":"1","subject":"物理","content":"完成练习","checked":true,"total":2,"completed":1,"missingNames":["测试同学"]}]}""");
+    BashuHomeworkPreviewWindow.UpdateLive(liveSnapshot);Dispatcher.UIThread.RunJobs();
+    BashuHomeworkPreviewWindow? Live() => (BashuHomeworkPreviewWindow?)typeof(BashuHomeworkPreviewWindow).GetField("_liveInstance",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!.GetValue(null);
+    var live=Live()!;var retainedCard=live.ViewModel.Cards[0];
+    BashuHomeworkPreviewWindow.MarkLiveOffline();Dispatcher.UIThread.RunJobs();
+    Check(ReferenceEquals(Live(),live) && live.IsVisible && live.ViewModel.IsOffline && ReferenceEquals(live.ViewModel.Cards[0],retainedCard),"disconnect keeps the actual live window visible with its last roster");
+    live.ViewModel.Expanded=true;Dispatcher.UIThread.RunJobs();live.UpdateLayout();
+    Check(live.GetVisualDescendants().OfType<TextBlock>().Any(t=>t.Text?.Contains("离线 · 上次同步")==true),"actual expanded window visibly labels the cached result as offline");
+    BashuHomeworkPreviewWindow.MarkLiveSynchronized();
+    Check(!live.ViewModel.IsOffline && ReferenceEquals(live.ViewModel.Cards[0],retainedCard),"304 recovery preserves the actual card and window position");
+    live.Close();BashuHomeworkPreviewWindow.MarkLiveOffline();BashuHomeworkPreviewWindow.MarkLiveSynchronized();BashuHomeworkPreviewWindow.UpdateLive(liveSnapshot);
+    Check(Live()==null,"background recovery never reopens an unchanged window closed by the user");
+    liveSnapshot.Revision="live-b";BashuHomeworkPreviewWindow.UpdateLive(liveSnapshot);
+    Check(Live()!=null,"new homework data can reopen the live board");
+    BashuHomeworkPreviewWindow.ResetLive();
+    Check(Live()==null,"unpairing clears and closes the last class board");
     Console.WriteLine("All real homework window checks passed.");
 }
 finally {window?.Close();Directory.Delete(directory,true);}
