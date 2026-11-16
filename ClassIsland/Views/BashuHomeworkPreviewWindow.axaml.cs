@@ -30,38 +30,37 @@ public partial class BashuHomeworkPreviewWindow : Window
     private static string? _closedRevision;
     private static bool _isOffline;
     private static DateTimeOffset? _lastSynchronizedAt;
-    public static void UpdateLive(BashuHomeworkSnapshot snapshot)
+    public static void UpdateLive(BashuHomeworkSnapshot snapshot, bool forceRefresh = false)
     {
-        var changed = _latest?.Revision != snapshot.Revision;
+        var changed = forceRefresh || _latest?.Revision != snapshot.Revision;
+        if (_liveInstance == null && (forceRefresh || _closedRevision != snapshot.Revision))
+            OpenLiveCore(snapshot);
+        else if (changed)
+            _liveInstance?.ViewModel.ApplySnapshot(snapshot);
+        // Commit only after rendering succeeds, so an identical retry can recover.
         _latest = snapshot;
         MarkLiveSynchronized();
-        if (_liveInstance == null && _closedRevision != snapshot.Revision)
-        {
-            OpenLive();
-            return;
-        }
-        // Stable snapshots must not rebuild the list and reset the teacher's scroll position.
-        if (changed) _liveInstance?.ViewModel.ApplySnapshot(snapshot);
     }
-    public static void OpenLive()
+    public static void OpenLive() => OpenLiveCore(_latest);
+    private static void OpenLiveCore(BashuHomeworkSnapshot? snapshot)
     {
-        if (_liveInstance == null)
+        if (_liveInstance != null) { _liveInstance.Activate(); return; }
+        var window = new BashuHomeworkPreviewWindow { Title = "巴蜀班级作业 · 平台实时同步" };
+        if (snapshot != null)
         {
-            _liveInstance = new BashuHomeworkPreviewWindow { Title = "巴蜀班级作业 · 平台实时同步" };
-            if (_latest != null)
-            {
-                _liveInstance.ViewModel.ApplySnapshot(_latest);
-                _liveInstance.ViewModel.MarkSynchronized(_lastSynchronizedAt);
-                if (_isOffline) _liveInstance.ViewModel.MarkOffline();
-            }
-            else
-            {
-                _liveInstance.ViewModel.EnterLiveMode();
-            }
-            _liveInstance.Closed += (_, _) => { _closedRevision = _latest?.Revision; _liveInstance = null; };
-            _liveInstance.Show();
+            window.ViewModel.ApplySnapshot(snapshot);
+            window.ViewModel.MarkSynchronized(_lastSynchronizedAt);
+            if (_isOffline) window.ViewModel.MarkOffline();
         }
-        else _liveInstance.Activate();
+        else window.ViewModel.EnterLiveMode();
+        window.Closed += (_, _) =>
+        {
+            if (!ReferenceEquals(_liveInstance, window)) return;
+            _closedRevision = _latest?.Revision;
+            _liveInstance = null;
+        };
+        window.Show();
+        _liveInstance = window;
     }
     public static void MarkLiveOffline()
     {

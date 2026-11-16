@@ -29,6 +29,7 @@ public partial class JoinManagementDialog : MyWindow
     public JoinManagementViewModel ViewModel { get; } = new();
 
     public IManagementService ManagementService { get; } = IAppHost.GetService<IManagementService>();
+    public Services.Management.BashuPlatformService PlatformService { get; } = IAppHost.GetService<Services.Management.BashuPlatformService>();
 
     public JoinManagementDialog()
     {
@@ -70,9 +71,9 @@ public partial class JoinManagementDialog : MyWindow
         ViewModel.IsWorking = true;
         try
         {
-            var service = IAppHost.GetService<Services.Management.BashuPlatformService>();
-            await service.PollOnceAsync(true);
-            PlatformStatus.Text = $"{service.Status} · 课表同步：{service.LastSync}";
+            PlatformStatus.Text = "正在同步课表、通知和作业…";
+            await PlatformService.SynchronizeNowAsync();
+            PlatformStatus.Text = "同步检查已完成，结果见上方。";
         }
         finally { ViewModel.IsWorking = false; }
     }

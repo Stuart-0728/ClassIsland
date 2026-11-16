@@ -180,7 +180,20 @@ try
     Check(!live.ViewModel.IsOffline && ReferenceEquals(live.ViewModel.Cards[0],retainedCard),"304 recovery preserves the actual card and window position");
     live.Close();BashuHomeworkPreviewWindow.MarkLiveOffline();BashuHomeworkPreviewWindow.MarkLiveSynchronized();BashuHomeworkPreviewWindow.UpdateLive(liveSnapshot);
     Check(Live()==null,"background recovery never reopens an unchanged window closed by the user");
+    BashuHomeworkPreviewWindow.UpdateLive(liveSnapshot,true);
+    Check(Live()!=null && Live()!.ViewModel.CurrentCard!.AssignmentContent=="完成练习","explicit manual sync reopens an unchanged board closed by the user");
+    Live()!.Close();
     liveSnapshot.Revision="live-b";BashuHomeworkPreviewWindow.UpdateLive(liveSnapshot);
+    var retrySnapshot=ClassIsland.ViewModels.BashuHomeworkSnapshot.Parse("""{"schemaVersion":1,"revision":"render-retry","className":"测试班级","items":[{"id":"2","subject":"数学","content":"恢复后的作业","total":2}]}""");
+    var retryWindow=Live()!;
+    System.ComponentModel.PropertyChangedEventHandler failOnce=(_,e)=>{if(e.PropertyName=="Subtitle")throw new InvalidOperationException("simulated transient view update failure");};
+    retryWindow.ViewModel.PropertyChanged+=failOnce;
+    var failed=false;
+    try{BashuHomeworkPreviewWindow.UpdateLive(retrySnapshot);}catch(InvalidOperationException){failed=true;}
+    retryWindow.ViewModel.PropertyChanged-=failOnce;
+    Check(failed,"actual view update failure is reproducible");
+    BashuHomeworkPreviewWindow.UpdateLive(retrySnapshot);
+    Check(retryWindow.ViewModel.CurrentCard!.AssignmentContent=="恢复后的作业","identical snapshot retries recover after a transient render failure");
     Check(Live()!=null,"new homework data can reopen the live board");
     BashuHomeworkPreviewWindow.ResetLive();
     Check(Live()==null,"unpairing clears and closes the last class board");

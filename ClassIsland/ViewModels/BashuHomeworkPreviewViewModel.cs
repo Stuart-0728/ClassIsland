@@ -99,7 +99,7 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     public string CurrentSubject => CurrentCard?.Subject ?? "";
     public string CurrentSubjectColor => CurrentCard?.SubjectColor ?? "#007E73";
     public string CurrentSubjectBackground => CurrentCard?.SubjectBackground ?? "#E8F5F1";
-    public string CurrentStatus => CurrentCard?.Status ?? (Cards.Count == 0 ? (IsLive ? "暂无作业" : "等待清查") : "");
+    public string CurrentStatus => CurrentCard?.Status ?? (Cards.Count == 0 ? (IsLive ? (_snapshot == null ? "等待同步" : "暂无作业") : "等待清查") : "");
     public string CurrentStatusColor => CurrentCard?.StatusColor ?? "#007E73";
     public string CurrentStatusBackground => CurrentCard?.StatusBackground ?? "#E8F5F1";
     public string CurrentStatusBorder => CurrentCard?.StatusBorder ?? "#C5E3D8";
@@ -189,7 +189,7 @@ public sealed class BashuHomeworkPreviewViewModel : ObservableObject
     public string Hint => Stage switch { 0 => "布置后自动展示；清查前不推断未交名单。", 1 => "模拟老师确认清查：请假、免交不计入待补交。", 2 => "模拟收到补交确认：示例同学甲已从物理名单移除。", _ => "所有作业已交齐。可收起悬浮窗，或重新演示。" };
     public BashuHomeworkPreviewViewModel() => Refresh();
     public void Next() => Stage = (Stage + 1) % Stages.Length;
-    private string LiveSummary => _snapshot == null || _snapshot.Items.Count == 0 ? "暂无待展示作业" :
+    private string LiveSummary => _snapshot == null ? "正在获取作业数据" : _snapshot.Items.Count == 0 ? "暂无待展示作业" :
         $"{_snapshot.Items.Count} 项作业 · 待补交 {_snapshot.Items.Where(x => x.Checked).Sum(x => x.MissingNames.Count)} 人次" +
         (_snapshot.Items.Any(x => !x.Checked) ? " · 部分待清查" : "");
 

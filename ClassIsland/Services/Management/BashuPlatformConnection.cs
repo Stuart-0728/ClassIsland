@@ -30,6 +30,7 @@ public class BashuPlatformConnection : IManagementServerConnection
     public ManagementSettings Settings { get; }
     public Guid ClientGuid { get; }
     public string LastError { get; private set; } = "尚未连接";
+    public string LastHomeworkError { get; private set; } = "尚未连接";
 
     private HttpClient HttpClient { get; }
     internal BashuPollingPolicy PollSchedule { get; }
@@ -177,12 +178,13 @@ public class BashuPlatformConnection : IManagementServerConnection
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, "/api/display-client/homework");
-            request.Headers.Add("X-Homework-Client-Version", "2.2.22");
+            request.Headers.Add("X-Homework-Client-Version", "2.2.23");
             if (HomeworkEtag != null) request.Headers.TryAddWithoutValidation("If-None-Match", HomeworkEtag);
             using var response = await HttpClient.SendAsync(request, cancellationToken);
             if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
             {
                 HomeworkNotModified = true;
+                LastHomeworkError = "作业数据已是最新";
                 PairingInvalid = false;
                 HomeworkSchedule.Succeeded(response);
                 return null;
@@ -190,11 +192,15 @@ public class BashuPlatformConnection : IManagementServerConnection
             if (!response.IsSuccessStatusCode)
             {
                 PairingInvalid = response.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+                LastHomeworkError = PairingInvalid ? "设备配对已失效，请重新配对" :
+                    response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ? "作业接口正在限流，稍后自动重试" :
+                    $"作业接口连接失败（HTTP {(int)response.StatusCode}）";
                 HomeworkSchedule.Failed(response);
                 return null;
             }
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
             HomeworkEtag = response.Headers.ETag?.ToString();
+            LastHomeworkError = "作业接口已连接";
             PairingInvalid = false;
             HomeworkSchedule.Succeeded(response);
             return json;
@@ -202,6 +208,7 @@ public class BashuPlatformConnection : IManagementServerConnection
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
+            LastHomeworkError = "作业暂时无法连接，保留上次结果并自动重试";
             HomeworkSchedule.Failed();
             Logger.LogDebug(ex, "作业同步暂不可用，等待重试");
             return null;

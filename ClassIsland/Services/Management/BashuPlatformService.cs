@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Abstractions.Services.Management;
 using ClassIsland.Core.Abstractions.Services.SpeechService;
@@ -31,7 +32,7 @@ namespace ClassIsland.Services.Management;
 /// 实时接收平台对讲语音并播放音频片段、
 /// 并向平台反馈确认回执
 /// </summary>
-public class BashuPlatformService : IHostedService
+public class BashuPlatformService : ObservableObject, IHostedService
 {
     private ILogger<BashuPlatformService> Logger { get; }
     private IProfileService ProfileService { get; }
@@ -46,8 +47,56 @@ public class BashuPlatformService : IHostedService
     private DispatcherTimer? HomeworkTimer;
     private bool HomeworkPolling;
     private string? HomeworkBinding;
-    private async Task PollHomeworkAsync()
+    private TaskCompletionSource? PollCompletion;
+    private TaskCompletionSource? HomeworkCompletion;
+    private bool ManualSyncPending;
+    private Task? ManualSyncTask;
+
+    public Task SynchronizeNowAsync() => ManualSyncTask is { IsCompleted: false }
+        ? ManualSyncTask : ManualSyncTask = SynchronizeNowCoreAsync();
+
+    private async Task SynchronizeNowCoreAsync()
     {
+        ManualSyncPending = true;
+        try
+        {
+            await Task.WhenAll(PollCompletion?.Task ?? Task.CompletedTask, HomeworkCompletion?.Task ?? Task.CompletedTask);
+            var connection = Connection;
+            if (connection == null || string.IsNullOrWhiteSpace(connection.Settings.BashuDeviceToken))
+            {
+                Status = HomeworkStatus = "设备尚未配对";
+                return;
+            }
+            Status = "正在等待允许的同步时间…";
+            HomeworkStatus = "正在等待允许的同步时间…";
+            async Task Schedule()
+            {
+                await connection.PollSchedule.WaitUntilDueAsync(Shutdown.Token);
+                if (Connection == connection)
+                {
+                    Status = "正在获取课表和通知…";
+                    await PollOnceAsync(true);
+                }
+            }
+            async Task Homework()
+            {
+                await connection.HomeworkSchedule.WaitUntilDueAsync(Shutdown.Token);
+                if (Connection == connection) await PollHomeworkAsync(true);
+            }
+            await Task.WhenAll(Schedule(), Homework());
+        }
+        catch (OperationCanceledException) when (Shutdown.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            Status = "手动同步失败：" + ex.Message;
+            Logger.LogWarning(ex, "手动同步平台数据失败");
+        }
+        finally { ManualSyncPending = false; }
+    }
+
+    private async Task PollHomeworkAsync(bool forceRefresh = false)
+    {
+        if (ManualSyncPending && !forceRefresh) return;
         var connection = Connection;
         var token = connection?.Settings.BashuDeviceToken;
         var binding = connection == null ? null : connection.Settings.BashuServerUrl.TrimEnd('/') + "|" + token;
@@ -58,23 +107,31 @@ public class BashuPlatformService : IHostedService
         }
         if (HomeworkPolling || Shutdown.IsCancellationRequested || connection == null || string.IsNullOrWhiteSpace(token) || !connection.HomeworkSchedule.IsDue) return;
         HomeworkPolling = true;
+        var completion = HomeworkCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
+            if (forceRefresh) connection.InvalidateHomeworkCache();
+            HomeworkStatus = "正在获取作业…";
             var json = await connection.GetHomeworkAsync(Shutdown.Token);
             if (Shutdown.IsCancellationRequested || Connection != connection || HomeworkBinding != binding || connection.Settings.BashuDeviceToken != token) return;
             if (json == null)
             {
+                HomeworkStatus = connection.LastHomeworkError;
+                if (connection.HomeworkNotModified) LastHomeworkSync = DateTime.Now.ToString("MM-dd HH:mm:ss");
                 if (connection.PairingInvalid) await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.ResetLive);
                 else if (connection.HomeworkNotModified) await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.MarkLiveSynchronized);
                 else await Dispatcher.UIThread.InvokeAsync(BashuHomeworkPreviewWindow.MarkLiveOffline);
                 return;
             }
             var snapshot = ClassIsland.ViewModels.BashuHomeworkSnapshot.Parse(json);
-            await Dispatcher.UIThread.InvokeAsync(() => BashuHomeworkPreviewWindow.UpdateLive(snapshot));
+            await Dispatcher.UIThread.InvokeAsync(() => BashuHomeworkPreviewWindow.UpdateLive(snapshot, forceRefresh));
+            HomeworkStatus = $"已同步 {snapshot.Items.Count} 项作业";
+            LastHomeworkSync = DateTime.Now.ToString("MM-dd HH:mm:ss");
         }
         catch (OperationCanceledException) when (Shutdown.IsCancellationRequested) { }
         catch (Exception ex)
         {
+            HomeworkStatus = "作业显示更新失败，将自动重试";
             connection.InvalidateHomeworkCache();
             connection.HomeworkSchedule.Failed();
             if (Connection == connection && HomeworkBinding == binding && connection.Settings.BashuDeviceToken == token)
@@ -84,6 +141,7 @@ public class BashuPlatformService : IHostedService
         finally
         {
             HomeworkPolling = false;
+            completion.TrySetResult();
             if (HomeworkTimer != null && Connection == connection) HomeworkTimer.Interval = connection.HomeworkSchedule.Interval;
         }
     }
@@ -120,8 +178,14 @@ public class BashuPlatformService : IHostedService
     private readonly CancellationTokenSource Shutdown = new();
     private BashuPlatformConnection? LastConnection;
     private string? LastConnectionBinding;
-    public string Status { get; private set; } = "等待连接";
-    public string LastSync { get; private set; } = "尚未同步";
+    private string _status = "等待连接";
+    private string _lastSync = "尚未同步";
+    private string _homeworkStatus = "等待连接";
+    private string _lastHomeworkSync = "尚未同步";
+    public string Status { get => _status; private set => SetProperty(ref _status, value); }
+    public string LastSync { get => _lastSync; private set => SetProperty(ref _lastSync, value); }
+    public string HomeworkStatus { get => _homeworkStatus; private set => SetProperty(ref _homeworkStatus, value); }
+    public string LastHomeworkSync { get => _lastHomeworkSync; private set => SetProperty(ref _lastHomeworkSync, value); }
     private NotificationRequest? IntercomNotification;
     private DateTime LastAudioAt;
     private readonly Queue<(BashuPlatformConnection Connection, JsonElement Segment, long Id)> NormalAudioQueue = new();
@@ -244,6 +308,7 @@ public class BashuPlatformService : IHostedService
 
     public async Task PollOnceAsync(bool forceSchedule = false)
     {
+        if (ManualSyncPending && !forceSchedule) return;
         if (IsPolling) { Status = "正在同步，请稍候"; return; }
         if (forceSchedule) LastScheduleSignature = "";
         var conn = Connection;
@@ -258,6 +323,7 @@ public class BashuPlatformService : IHostedService
 
         if (!conn.PollSchedule.IsDue) return;
         IsPolling = true;
+        var completion = PollCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
             var connectionBinding = conn.Settings.BashuServerUrl.TrimEnd('/') + "|" + conn.Settings.BashuDeviceToken;
@@ -500,6 +566,7 @@ public class BashuPlatformService : IHostedService
         finally
         {
             IsPolling = false;
+            completion.TrySetResult();
             if (PollTimer != null && Connection == conn) PollTimer.Interval = conn.PollSchedule.Interval;
         }
     }

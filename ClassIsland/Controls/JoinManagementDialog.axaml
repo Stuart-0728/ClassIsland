@@ -38,7 +38,17 @@
                         <Run Text="{Binding ViewModel.BashuServerUrl}" />
                     </TextBlock>
                     <TextBlock Text="课表和任课教师请在平台维护，本机自动同步；外观与音量可在本机调整。" TextWrapping="Wrap" />
-                    <TextBlock x:Name="PlatformStatus" Text="点击立即同步检查连接；解除绑定需要确认并重启。" TextWrapping="Wrap" />
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding PlatformService.Status}" TextWrapping="Wrap" />
+                        <TextBlock FontSize="12"><Run Text="课表上次同步："/><Run Text="{Binding PlatformService.LastSync}"/></TextBlock>
+                        <TextBlock Text="{Binding PlatformService.HomeworkStatus}" TextWrapping="Wrap" />
+                        <TextBlock FontSize="12"><Run Text="作业上次同步："/><Run Text="{Binding PlatformService.LastHomeworkSync}"/></TextBlock>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding ViewModel.IsWorking}">
+                        <controls:ProgressRing Width="18" Height="18" IsActive="{Binding ViewModel.IsWorking}"/>
+                        <TextBlock Text="正在同步，请稍候…" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock x:Name="PlatformStatus" Text="手动同步同时检查课表、通知和作业；解除绑定需要确认并重启。" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button Content="立即同步" Click="ButtonSync_OnClick" />
                         <Button Content="语音测试" Click="ButtonAudioTest_OnClick" />

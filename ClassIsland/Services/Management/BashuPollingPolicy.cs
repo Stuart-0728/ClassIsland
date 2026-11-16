@@ -2,6 +2,8 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ClassIsland.Services.Management;
 
@@ -14,6 +16,17 @@ internal sealed class BashuPollingPolicy(TimeSpan normalInterval, Func<DateTimeO
     private DateTimeOffset _nextAttempt;
     public TimeSpan Interval { get; private set; } = normalInterval;
     public bool IsDue => _clock() >= _nextAttempt;
+    public TimeSpan RemainingDelay
+    {
+        get { var remaining = _nextAttempt - _clock(); return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero; }
+    }
+
+    public async Task WaitUntilDueAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        while (RemainingDelay > TimeSpan.Zero)
+            await Task.Delay(RemainingDelay + TimeSpan.FromMilliseconds(1), cancellationToken);
+    }
 
     public void Reset()
     {

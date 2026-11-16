@@ -42,6 +42,20 @@ now+=connection.HomeworkSchedule.Interval;
 handler.Next=()=>Reply(HttpStatusCode.NotModified);
 Check(await connection.GetHomeworkAsync(default)==null && connection.HomeworkNotModified,"304 confirms that the previous homework remains current");
 Check(handler.IfNoneMatch.Last()=="\"v1\"","unchanged homework uses a conditional request");
+Check(connection.LastHomeworkError.Contains("最新"),"304 has an explicit homework status");
+var waitingRequests=handler.Paths.Count;
+using(var waitCancellation=new CancellationTokenSource())
+{
+    var wait=connection.HomeworkSchedule.WaitUntilDueAsync(waitCancellation.Token);
+    Check(!wait.IsCompleted && connection.HomeworkSchedule.RemainingDelay>TimeSpan.Zero,"manual sync can wait for the existing cooldown");
+    waitCancellation.Cancel();
+    try{await wait;throw new Exception("manual wait cancellation swallowed");}catch(OperationCanceledException){Console.WriteLine("PASS manual cooldown wait can be canceled");}
+}
+Check(handler.Paths.Count==waitingRequests,"waiting for manual refresh never sends early HTTP requests");
+now+=connection.HomeworkSchedule.Interval;
+connection.InvalidateHomeworkCache();handler.Next=()=>Reply(HttpStatusCode.OK,"manual-snapshot",etag:"\"manual\"");
+Check(await connection.GetHomeworkAsync(default)=="manual-snapshot" && handler.IfNoneMatch.Last()=="","manual refresh can request the full unchanged homework snapshot");
+Check(connection.LastHomeworkError=="作业接口已连接","homework connection status recovers after a successful response");
 now+=connection.HomeworkSchedule.Interval;
 handler.Next=()=>throw new HttpRequestException("offline");
 await connection.GetHomeworkAsync(default);

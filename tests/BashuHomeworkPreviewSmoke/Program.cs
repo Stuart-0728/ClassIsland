@@ -75,3 +75,8 @@ var retained=vm.Cards[0];var synchronized=vm.LastSynchronizedAt;
 vm.MarkOffline();Check(vm.IsOffline && ReferenceEquals(vm.Cards[0],retained) && vm.LastSynchronizedAt==synchronized,"disconnect retains the exact last snapshot and its synchronization time");
 Check(vm.CompactText.Contains("离线") && vm.Subtitle.Contains("上次同步") && vm.Cards[0].Names.Contains("测试同学"),"compact and expanded views label retained results as offline");
 vm.MarkSynchronized();Check(!vm.IsOffline && ReferenceEquals(vm.Cards[0],retained),"unchanged 304 recovery clears offline status without rebuilding cards");
+
+vm.EnterLiveMode();
+Check(vm.CurrentStatus=="等待同步" && vm.Summary=="正在获取作业数据","unreceived homework is not mislabeled as no assignments");
+vm.ApplySnapshot(new BashuHomeworkSnapshot{SchemaVersion=1,Revision="confirmed-empty",Items=[]});
+Check(vm.CurrentStatus=="暂无作业" && vm.Summary=="暂无待展示作业","a successfully synchronized empty snapshot is distinguished from waiting");
