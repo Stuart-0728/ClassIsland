@@ -177,7 +177,7 @@ public class BashuPlatformConnection : IManagementServerConnection
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, "/api/display-client/homework");
-            request.Headers.Add("X-Homework-Client-Version", "2.2.21");
+            request.Headers.Add("X-Homework-Client-Version", "2.2.22");
             if (HomeworkEtag != null) request.Headers.TryAddWithoutValidation("If-None-Match", HomeworkEtag);
             using var response = await HttpClient.SendAsync(request, cancellationToken);
             if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
