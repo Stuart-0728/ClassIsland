@@ -91,6 +91,7 @@ public class BashuPlatformService : IHostedService
     private DispatcherTimer? PollTimer { get; set; }
     private string LastScheduleSignature { get; set; } = "";
     private DateTime LastScheduleDay;
+    private string? LastScheduleError;
     private Profile? LastSyncedProfile;
     private readonly HashSet<long> ProcessedNotificationIds = new();
     private readonly Queue<long> ProcessedNotificationOrder = new();
@@ -272,6 +273,7 @@ public class BashuPlatformService : IHostedService
                 LastConnection = conn;
                 LastConnectionBinding = connectionBinding;
                 LastScheduleSignature = "";
+                LastScheduleError = null;
                 ProcessedNotificationIds.Clear(); ProcessedNotificationOrder.Clear();
                 ProcessedIntercomSegmentIds.Clear(); ProcessedIntercomSegmentOrder.Clear();
                 PendingNotificationAcks.Clear(); PendingIntercomAcks.Clear();
@@ -294,7 +296,7 @@ public class BashuPlatformService : IHostedService
             await RtcReceiver.PollAsync(conn);
             WsReceiver.EnsureConnected(conn);
             var today = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(8)).Date;
-            var needSchedule = forceSchedule || string.IsNullOrEmpty(LastScheduleSignature) || LastScheduleDay != today || !ReferenceEquals(LastSyncedProfile, ProfileService.Profile);
+            var needSchedule = forceSchedule || LastScheduleError != null || string.IsNullOrEmpty(LastScheduleSignature) || LastScheduleDay != today || !ReferenceEquals(LastSyncedProfile, ProfileService.Profile);
             var json = await conn.PollAsync(Shutdown.Token, needSchedule);
             if (conn.PairingInvalid)
             {
@@ -314,27 +316,38 @@ public class BashuPlatformService : IHostedService
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
-            Status = "平台已连接";
+            Status = LastScheduleError ?? "平台已连接";
 
             // 1. 同步课表（实时更新，精确对齐当天）
-            if (root.TryGetProperty("dashboard", out var dashboard))
+            try
             {
-                if (dashboard.TryGetProperty("scheduleWeek", out var scheduleEl) && scheduleEl.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty("dashboard", out var dashboard))
                 {
-                    var sig = scheduleEl.GetRawText();
-                    if (sig != LastScheduleSignature || !ReferenceEquals(LastSyncedProfile, ProfileService.Profile))
+                    if (dashboard.TryGetProperty("scheduleWeek", out var scheduleEl) && scheduleEl.ValueKind == JsonValueKind.Array)
                     {
-                        await ApplyScheduleAsync(scheduleEl);
-                        LastScheduleSignature = sig;
-                        LastSyncedProfile = ProfileService.Profile;
-                        LastSync = DateTime.Now.ToString("MM-dd HH:mm:ss");
+                        var sig = scheduleEl.GetRawText();
+                        if (LastScheduleError != null || sig != LastScheduleSignature || !ReferenceEquals(LastSyncedProfile, ProfileService.Profile))
+                        {
+                            await ApplyScheduleAsync(scheduleEl);
+                            LastScheduleError = null;
+                            Status = "平台已连接";
+                            LastScheduleSignature = sig;
+                            LastSyncedProfile = ProfileService.Profile;
+                            LastSync = DateTime.Now.ToString("MM-dd HH:mm:ss");
+                        }
+                        LastScheduleDay = today;
                     }
-                    LastScheduleDay = today;
+                    else
+                    {
+                        Status = "服务器尚未提供整周课表，请先更新平台服务";
+                    }
                 }
-                else
-                {
-                    Status = "服务器尚未提供整周课表，请先更新平台服务";
-                }
+            }
+            catch (Exception ex)
+            {
+                // A local profile error must not discard notifications in the same response.
+                LastScheduleError = Status = "课表同步失败（通知仍可接收）：" + ex.Message;
+                Logger.LogWarning(ex, "平台课表更新失败，保留重试并继续接收通知");
             }
 
             // 2. 接收广播通知（必播语音与 1.wav 提示音）

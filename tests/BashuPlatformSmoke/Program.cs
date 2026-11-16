@@ -24,6 +24,48 @@ Check(profile.Subjects[monday.Classes[0].SubjectId].TeacherName == "张老师", 
 var subjects = profile.Subjects.Count;
 BashuScheduleMapper.Apply(profile, data.RootElement);
 Check(profile.Subjects.Count == subjects && profile.ClassPlans.Count == 7, "repeat sync is idempotent");
+// Invalid later weekdays must not partially replace the saved week.
+var beforeInvalid = JsonSerializer.Serialize(profile);
+foreach (var (start, end) in new[] { ("14:00:00", "13:00:00"), ("not-a-time", "14:40:00") })
+{
+    var rows = new[] {
+        new { weekday = 1, subject_name = "新课程", starts_at = "10:00:00", ends_at = "10:40:00" },
+        new { weekday = 5, subject_name = "数学", starts_at = start, ends_at = end }
+    };
+    using var invalid = JsonDocument.Parse(JsonSerializer.Serialize(rows));
+    var rejected = false;
+    try { BashuScheduleMapper.Apply(profile, invalid.RootElement); }
+    catch (Exception ex) when (ex is InvalidOperationException or FormatException) { rejected = true; }
+    Check(rejected, "invalid later weekday is rejected");
+    Check(JsonSerializer.Serialize(profile) == beforeInvalid, "invalid week leaves all plans, subjects and layouts unchanged");
+}
+using (var overlap = JsonDocument.Parse("""
+[{"weekday":1,"starts_at":"10:00:00","ends_at":"10:40:00","subject_name":"新课程"},
+ {"weekday":5,"starts_at":"14:00:00","ends_at":"14:40:00"},
+ {"weekday":5,"starts_at":"14:30:00","ends_at":"15:10:00"}]
+"""))
+{
+    var rejected = false;
+    try { BashuScheduleMapper.Apply(profile, overlap.RootElement); }
+    catch (InvalidOperationException ex) { rejected = ex.Message.Contains("周五"); }
+    Check(rejected && JsonSerializer.Serialize(profile) == beforeInvalid, "overlap reports its weekday and preserves the whole profile");
+}
+BashuScheduleMapper.Apply(profile, data.RootElement);
+Check(profile.ClassPlans.Count == 7 && profile.ClassPlans.Values.Sum(x => x.Classes.Count) == 3 && profile.Subjects.Count == subjects, "valid schedule synchronizes again after a rejected update");
+var actualDashboard = Environment.GetEnvironmentVariable("SCHEDULE_QA_DASHBOARD");
+if (!string.IsNullOrWhiteSpace(actualDashboard))
+{
+    using var liveData = JsonDocument.Parse(File.ReadAllText(actualDashboard));
+    var schedule = liveData.RootElement.GetProperty("scheduleWeek");
+    var actualProfile = JsonSerializer.Deserialize<Profile>(JsonSerializer.Serialize(new Profile()))!;
+    for (var i = 0; i < 3; i++)
+    {
+        BashuScheduleMapper.Apply(actualProfile, schedule);
+        actualProfile = JsonSerializer.Deserialize<Profile>(JsonSerializer.Serialize(actualProfile))!;
+        Check(actualProfile.ClassPlans.Values.Sum(x => x.Classes.Count) == schedule.GetArrayLength(),
+            "actual platform schedule maps, saves and reloads without lost lessons, cycle " + i);
+    }
+}
 using var empty = JsonDocument.Parse("[]");
 BashuScheduleMapper.Apply(profile, empty.RootElement);
 Check(profile.ClassPlans.Values.All(x => x.Classes.Count == 0), "empty schedule clears previous lessons");

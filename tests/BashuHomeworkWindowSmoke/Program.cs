@@ -23,6 +23,14 @@ void Capture(string name) {using var warmup=window!.CaptureRenderedFrame();Dispa
 try
 {
     window=new BashuHomeworkPreviewWindow(statePath);window.Show();Layout();
+    var actualHomework = Environment.GetEnvironmentVariable("HOMEWORK_QA_SNAPSHOT");
+    if (!string.IsNullOrWhiteSpace(actualHomework))
+    {
+        var snapshot = ClassIsland.ViewModels.BashuHomeworkSnapshot.Parse(File.ReadAllText(actualHomework));
+        window.ViewModel.ApplySnapshot(snapshot); Layout();
+        Check(window.ViewModel.CurrentCard != null, "actual classroom homework reaches a visible card");
+        Capture("actual-classroom-homework");
+    }
     Check(!window.ShowInTaskbar,"homework capsule does not create a taskbar entry");
     Check(window.Topmost && window.ViewModel.PinAngle==0,"pinned capsule uses upright pin by default");
     Click(window.FindControl<Button>("CompactPinButton")!);
